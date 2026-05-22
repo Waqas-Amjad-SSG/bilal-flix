@@ -1,0 +1,24 @@
+# Video files (too large for GitHub)
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.wmv
+*.m4v
+*.webm
+*.ts
+
+# Subtitle files (served locally)
+*.srt
+*.vtt
+*.sub
+*.ass
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini

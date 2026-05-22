@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bilal Flix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ===== RESET & BASE ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #0a0a0f;
+  color: #e5e5e5;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #1a1a2e; }
+::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+
+/* ===== LOCK SCREEN ===== */
+.lock-screen {
+  position: fixed; inset: 0; z-index: 1000;
+  background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a1a2e 100%);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+}
+.lock-screen.hidden { display: none; }
+.lock-logo {
+  font-size: 2.5rem; font-weight: 800; letter-spacing: -1px;
+  background: linear-gradient(135deg, #e50914, #ff6b35);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+.lock-subtitle { color: #888; font-size: 0.85rem; margin-bottom: 2.5rem; }
+
+/* ===== PROFILE SELECT ===== */
+.profile-select {
+  position: fixed; inset: 0; z-index: 900;
+  background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a1a2e 100%);
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column;
+}
+.profile-select.hidden { display: none; }
+.profile-title { font-size: 1.8rem; font-weight: 700; margin-bottom: 2rem; }
+.profiles-grid {
+  display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center;
+  max-width: 600px; padding: 0 1rem;
+}
+.profile-card {
+  cursor: pointer; text-align: center; transition: transform 0.2s;
+}
+.profile-card:hover { transform: scale(1.1); }
+.profile-avatar {
+  width: 90px; height: 90px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.2rem; font-weight: 700; color: #fff;
+  margin-bottom: 0.5rem; border: 3px solid transparent;
+  transition: border-color 0.2s;
+}
+.profile-card:hover .profile-avatar { border-color: #fff; }
+.profile-name { font-size: 0.85rem; color: #aaa; }
+
+/* ===== PASSWORD MODAL ===== */
+.password-modal {
+  position: fixed; inset: 0; z-index: 950;
+  background: rgba(0,0,0,0.85);
+  display: flex; align-items: center; justify-content: center;
+}
+.password-modal.hidden { display: none; }
+.password-box {
+  background: #1a1a2e; border-radius: 16px; padding: 2rem;
+  width: 90%; max-width: 360px; text-align: center;
+}
+.password-box h3 { margin-bottom: 1rem; font-size: 1.2rem; }
+.password-box input {
+  width: 100%; padding: 0.75rem 1rem; border-radius: 8px;
+  border: 2px solid #333; background: #0d0d1a; color: #fff;
+  font-size: 1rem; outline: none; margin-bottom: 0.5rem;
+}
+.password-box input:focus { border-color: #e50914; }
+.password-box .error { color: #e50914; font-size: 0.8rem; min-height: 1.2rem; }
+.password-box button {
+  width: 100%; padding: 0.75rem; border: none; border-radius: 8px;
+  background: #e50914; color: #fff; font-size: 1rem; font-weight: 600;
+  cursor: pointer; margin-top: 0.5rem; transition: background 0.2s;
+}
+.password-box button:hover { background: #ff1a25; }
+.password-back {
+  background: none !important; color: #888 !important; margin-top: 0.5rem;
+  font-size: 0.85rem !important;
+}
+.password-back:hover { color: #fff !important; }
+
+/* ===== MAIN APP ===== */
+.app { display: none; }
+.app.visible { display: block; }
+
+/* NAV */
+.navbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: linear-gradient(180deg, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.7) 70%, transparent);
+  padding: 0.75rem 1.5rem; display: flex; align-items: center; gap: 1rem;
+  transition: background 0.3s;
+}
+.navbar.scrolled { background: rgba(10,10,15,0.98); }
+.nav-logo {
+  font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #e50914, #ff6b35);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  flex-shrink: 0;
+}
+.nav-links { display: flex; gap: 1rem; flex: 1; }
+.nav-links a {
+  color: #aaa; text-decoration: none; font-size: 0.85rem; font-weight: 500;
+  cursor: pointer; transition: color 0.2s; white-space: nowrap;
+}
+.nav-links a:hover, .nav-links a.active { color: #fff; }
+.nav-right { display: flex; align-items: center; gap: 0.75rem; margin-left: auto; }
+.search-box {
+  display: flex; align-items: center; background: transparent;
+  border: 2px solid transparent; border-radius: 8px; overflow: hidden;
+  transition: all 0.3s;
+}
+.search-box.open { background: #1a1a2e; border-color: #444; }
+.search-icon { padding: 0.5rem; cursor: pointer; color: #aaa; font-size: 1.1rem; }
+.search-input {
+  width: 0; border: none; background: transparent; color: #fff;
+  font-size: 0.9rem; outline: none; transition: width 0.3s;
+}
+.search-box.open .search-input { width: 180px; padding: 0.5rem 0.5rem 0.5rem 0; }
+.nav-profile {
+  width: 32px; height: 32px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.9rem; color: #fff;
+}
+.nav-profile-dropdown {
+  position: absolute; top: 100%; right: 0; background: #1a1a2e;
+  border-radius: 8px; padding: 0.5rem 0; min-width: 160px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5); display: none;
+}
+.nav-profile-wrapper { position: relative; }
+.nav-profile-wrapper:hover .nav-profile-dropdown { display: block; }
+.nav-profile-dropdown a {
+  display: block; padding: 0.5rem 1rem; color: #ccc; font-size: 0.85rem;
+  text-decoration: none; cursor: pointer;
+}
+.nav-profile-dropdown a:hover { background: #252540; color: #fff; }
+
+/* HERO / FEATURED */
+.hero {
+  position: relative; height: 70vh; min-height: 400px; max-height: 600px;
+  overflow: hidden; margin-bottom: 1rem;
+}
+.hero-bg {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, #1a0a2e, #0a1a3e, #1a2a1e);
+  display: flex; align-items: center; justify-content: center;
+}
+.hero-bg img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.hero-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(0deg, #0a0a0f 0%, transparent 50%, rgba(10,10,15,0.4) 100%);
+}
+.hero-content {
+  position: absolute; bottom: 15%; left: 5%; max-width: 500px; z-index: 2;
+}
+.hero-content h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 0.5rem; line-height: 1.1; }
+.hero-content p { color: #bbb; font-size: 0.9rem; margin-bottom: 1rem; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.hero-buttons { display: flex; gap: 0.75rem; }
+.btn-play, .btn-info {
+  padding: 0.6rem 1.5rem; border: none; border-radius: 6px;
+  font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s;
+}
+.btn-play { background: #fff; color: #000; }
+.btn-play:hover { background: #ddd; }
+.btn-info { background: rgba(255,255,255,0.2); color: #fff; }
+.btn-info:hover { background: rgba(255,255,255,0.3); }
+
+/* ROWS */
+.content-area { padding: 0 4%; }
+.row { margin-bottom: 2rem; }
+.row-title {
+  font-size: 1.2rem; font-weight: 700; margin-bottom: 0.75rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.row-title .see-all {
+  font-size: 0.8rem; color: #e50914; cursor: pointer; font-weight: 500;
+}
+.row-scroll {
+  display: flex; gap: 0.6rem; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding-bottom: 0.5rem; -ms-overflow-style: none; scrollbar-width: none;
+}
+.row-scroll::-webkit-scrollbar { display: none; }
+
+/* MOVIE CARD */
+.movie-card {
+  flex: 0 0 auto; width: 160px; scroll-snap-align: start;
+  cursor: pointer; position: relative; border-radius: 8px;
+  overflow: hidden; transition: transform 0.25s, box-shadow 0.25s;
+}
+.movie-card:hover { transform: scale(1.08); z-index: 5; box-shadow: 0 8px 30px rgba(0,0,0,0.6); }
+.movie-poster {
+  width: 100%; aspect-ratio: 2/3; object-fit: cover;
+  background: #1a1a2e; display: flex; align-items: center; justify-content: center;
+}
+.movie-poster-placeholder {
+  width: 100%; aspect-ratio: 2/3; background: linear-gradient(135deg, #1a1a2e, #2a1a3e);
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  padding: 0.5rem; text-align: center;
+}
+.movie-poster-placeholder .emoji { font-size: 2rem; margin-bottom: 0.3rem; }
+.movie-poster-placeholder .title { font-size: 0.7rem; color: #aaa; line-height: 1.3; }
+.movie-card-info {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.9));
+  padding: 2rem 0.5rem 0.5rem;
+}
+.movie-card-title { font-size: 0.75rem; font-weight: 600; line-height: 1.3; }
+.movie-card-meta { font-size: 0.65rem; color: #888; margin-top: 0.15rem; }
+.progress-bar {
+  height: 3px; background: #333; border-radius: 2px; margin-top: 0.3rem; overflow: hidden;
+}
+.progress-bar-fill { height: 100%; background: #e50914; border-radius: 2px; }
+
+/* SEARCH RESULTS */
+.search-results {
+  padding: 5rem 4% 2rem; display: none;
+}
+.search-results.visible { display: block; }
+.search-results-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 1rem; }
+.search-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.8rem;
+}
+.search-grid .movie-card { width: 100%; }
+
+/* CATEGORY VIEW */
+.category-view { padding: 5rem 4% 2rem; display: none; }
+.category-view.visible { display: block; }
+.category-view-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; }
+
+/* PLAYER */
+.player-screen {
+  position: fixed; inset: 0; z-index: 800; background: #000;
+  display: none; flex-direction: column;
+}
+.player-screen.visible { display: flex; }
+.player-header {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 10;
+  padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem;
+  background: linear-gradient(180deg, rgba(0,0,0,0.8), transparent);
+}
+.player-back {
+  background: none; border: none; color: #fff; font-size: 1.5rem;
+  cursor: pointer; padding: 0.25rem;
+}
+.player-title { font-size: 1rem; font-weight: 600; }
+.player-video {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+}
+.player-video video {
+  width: 100%; height: 100%; max-height: 100vh; background: #000;
+}
+.player-placeholder {
+  text-align: center; color: #666; padding: 2rem;
+}
+.player-placeholder .icon { font-size: 4rem; margin-bottom: 1rem; }
+.player-placeholder p { font-size: 0.9rem; line-height: 1.6; }
+.subtitle-btn {
+  background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+  color: #fff; padding: 0.3rem 0.7rem; border-radius: 4px; font-size: 0.8rem;
+  cursor: pointer; margin-left: auto; transition: all 0.2s;
+}
+.subtitle-btn:hover { background: rgba(255,255,255,0.3); }
+.subtitle-btn.active { background: #e50914; border-color: #e50914; }
+video::cue {
+  background: rgba(0,0,0,0.75); color: #fff; font-size: 1.1rem;
+  font-family: 'Inter', sans-serif; padding: 0.2em 0.4em;
+  border-radius: 4px;
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  .hero { height: 50vh; min-height: 300px; }
+  .hero-content h1 { font-size: 1.5rem; }
+  .hero-content p { font-size: 0.8rem; -webkit-line-clamp: 2; }
+  .hero-content { bottom: 10%; left: 4%; max-width: 70%; }
+  .movie-card { width: 120px; }
+  .search-box.open .search-input { width: 130px; }
+  .content-area { padding: 0 3%; }
+  .profiles-grid { gap: 1rem; }
+  .profile-avatar { width: 70px; height: 70px; font-size: 1.8rem; }
+  .lock-logo { font-size: 2rem; }
+  .btn-play, .btn-info { padding: 0.5rem 1rem; font-size: 0.8rem; }
+}
+@media (max-width: 480px) {
+  .movie-card { width: 105px; }
+  .row-title { font-size: 1rem; }
+  .search-grid { grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); }
+}
+
+/* MOBILE NAV */
+.mobile-nav {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  background: rgba(10,10,15,0.95); border-top: 1px solid #222;
+  padding: 0.5rem 0; z-index: 100;
+  justify-content: space-around;
+}
+@media (max-width: 768px) { .mobile-nav { display: flex; } .content-area { padding-bottom: 4rem; } }
+.mobile-nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+  color: #666; font-size: 0.65rem; cursor: pointer; text-decoration: none;
+  padding: 0.25rem 0.5rem; transition: color 0.2s;
+}
+.mobile-nav-item.active { color: #fff; }
+.mobile-nav-item .icon { font-size: 1.2rem; }
+
+/* LOADING */
+.loading-spinner {
+  display: inline-block; width: 30px; height: 30px;
+  border: 3px solid #333; border-top-color: #e50914;
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ===== LOCK SCREEN ===== -->
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-logo">BILAL FLIX</div>
+  <div class="lock-subtitle">Family Streaming</div>
+  <div style="background:#1a1a2e;border-radius:12px;padding:1.5rem;width:90%;max-width:320px;text-align:center">
+    <input type="password" id="masterPassword" placeholder="Enter master password"
+      style="width:100%;padding:0.75rem;border-radius:8px;border:2px solid #333;background:#0d0d1a;color:#fff;font-size:1rem;outline:none;margin-bottom:0.5rem"
+      onfocus="this.style.borderColor='#e50914'" onblur="this.style.borderColor='#333'">
+    <div id="masterError" style="color:#e50914;font-size:0.8rem;min-height:1.2rem"></div>
+    <button onclick="checkMasterPassword()" style="width:100%;padding:0.75rem;border:none;border-radius:8px;background:#e50914;color:#fff;font-size:1rem;font-weight:600;cursor:pointer">
+      Unlock
+    </button>
+  </div>
+</div>
+
+<!-- ===== PROFILE SELECT ===== -->
+<div class="profile-select hidden" id="profileSelect">
+  <div class="lock-logo" style="margin-bottom:0.25rem">BILAL FLIX</div>
+  <div class="profile-title">Who's watching?</div>
+  <div class="profiles-grid" id="profilesGrid"></div>
+</div>
+
+<!-- ===== PASSWORD MODAL ===== -->
+<div class="password-modal hidden" id="passwordModal">
+  <div class="password-box">
+    <h3 id="passwordModalUser">Enter PIN</h3>
+    <input type="password" id="profilePassword" placeholder="Enter your PIN" maxlength="6"
+      onkeydown="if(event.key==='Enter')checkProfilePassword()">
+    <div class="error" id="profileError"></div>
+    <button onclick="checkProfilePassword()">Continue</button>
+    <button class="password-back" onclick="closePasswordModal()">Back</button>
+  </div>
+</div>
+
+<!-- ===== PLAYER ===== -->
+<div class="player-screen" id="playerScreen">
+  <div class="player-header" id="playerHeader">
+    <button class="player-back" onclick="closePlayer()">←</button>
+    <span class="player-title" id="playerTitle"></span>
+    <button class="subtitle-btn" id="subtitleBtn" onclick="toggleSubtitles()" style="display:none">CC</button>
+  </div>
+  <div class="player-video" id="playerVideo"></div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div class="app" id="app">
+  <nav class="navbar" id="navbar">
+    <div class="nav-logo">BILAL FLIX</div>
+    <div class="nav-links" id="navLinks">
+      <a onclick="showHome()" class="active" data-nav="home">Home</a>
+      <a onclick="showCategory('movies')" data-nav="movies">Movies</a>
+      <a onclick="showCategory('series')" data-nav="series">Series</a>
+      <a onclick="showCategory('kids')" data-nav="kids">Kids</a>
+    </div>
+    <div class="nav-right">
+      <div class="search-box" id="searchBox">
+        <span class="search-icon" onclick="toggleSearch()">🔍</span>
+        <input class="search-input" id="searchInput" placeholder="Search titles..."
+          oninput="handleSearch(this.value)">
+      </div>
+      <div class="nav-profile-wrapper">
+        <div class="nav-profile" id="navAvatar" onclick=""></div>
+        <div class="nav-profile-dropdown">
+          <a onclick="switchProfile()">Switch Profile</a>
+          <a onclick="logout()">Sign Out</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HOME VIEW -->
+  <div id="homeView">
+    <div class="hero" id="heroSection"></div>
+    <div class="content-area" id="contentRows"></div>
+  </div>
+
+  <!-- SEARCH RESULTS -->
+  <div class="search-results" id="searchResults">
+    <div class="search-results-title" id="searchTitle">Results</div>
+    <div class="search-grid" id="searchGrid"></div>
+  </div>
+
+  <!-- CATEGORY VIEW -->
+  <div class="category-view" id="categoryView">
+    <div class="category-view-title" id="categoryTitle"></div>
+    <div class="search-grid" id="categoryGrid"></div>
+  </div>
+
+  <!-- MOBILE NAV -->
+  <div class="mobile-nav">
+    <a class="mobile-nav-item active" onclick="showHome()" data-nav="home">
+      <span class="icon">🏠</span>Home
+    </a>
+    <a class="mobile-nav-item" onclick="showCategory('movies')" data-nav="movies">
+      <span class="icon">🎬</span>Movies
+    </a>
+    <a class="mobile-nav-item" onclick="showCategory('series')" data-nav="series">
+      <span class="icon">📺</span>Series
+    </a>
+    <a class="mobile-nav-item" onclick="showCategory('kids')" data-nav="kids">
+      <span class="icon">👶</span>Kids
+    </a>
+    <a class="mobile-nav-item" onclick="toggleSearch()">
+      <span class="icon">🔍</span>Search
+    </a>
+  </div>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════╗
+// ║                    CONFIGURATION                            ║
+// ║  Edit the sections below to set up your family flix          ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ── MASTER PASSWORD (protects the whole site) ──
+const MASTER_PASSWORD = "bilalflix2024";
+
+// ── USER PROFILES ──
+const PROFILES = [
+  { id: "waqas",  name: "Waqas",       pin: "1234", color: "#e50914", avatar: "W" },
+  { id: "mano",   name: "Lovely Mano", pin: "5678", color: "#e91e63", avatar: "M" },
+  { id: "bilal",  name: "Bilal",       pin: "0000", color: "#42a5f5", avatar: "B" },
+];
+
+// ── MOVIE / SHOW CATALOG ──
+const CATALOG = [
+  // ═══════════════════════════════════════════════════
+  // MOVIES — "00 - Watched" folder
+  // ═══════════════════════════════════════════════════
+  { id: "a_quiet_place_2", title: "A Quiet Place Part II", year: 2020, category: "movies", genre: "Drama", desc: "Following the events at home, the Abbott family now face the terrors of the outside world. Forced to venture into the un", poster: "https://m.media-amazon.com/images/M/MV5BNjRiYjk4ZmItNGQ5NS00MmRhLTk4Y2EtMGQ1MTYxZWJhYjU0XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "97m (7.2)", emoji: "🎭" },
+  { id: "ambulance", title: "Ambulance", year: 2022, category: "movies", genre: "Action", desc: "Two robbers steal an ambulance after their heist goes awry.", poster: "https://m.media-amazon.com/images/M/MV5BZDZiY2RmNjgtYzYyZi00ZGEyLTlkOTUtZDc5OTUzY2NlMmEyXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "136m (6.1)", emoji: "💥" },
+  { id: "beast", title: "Beast", year: 2022, category: "movies", genre: "Action", desc: "A father and his two teenage daughters find themselves hunted by a massive rogue lion intent on proving that the savanna", poster: "https://m.media-amazon.com/images/M/MV5BNDQ5ZDA4NWItYWQyOS00MjE2LTk3ODktYTQzNmY5NGVhOWFjXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "93m (5.6)", emoji: "💥" },
+  { id: "beckett", title: "Beckett", year: 2021, category: "movies", genre: "Action", desc: "Following a tragic car accident in Greece, an American tourist finds himself at the center of a dangerous political cons", poster: "https://m.media-amazon.com/images/M/MV5BYTBiYWNjODktMjdjNi00ODRkLTliZWEtNzRmMWVmYTAxZTRhXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "110m (5.7)", emoji: "💥" },
+  { id: "boss_level", title: "Boss Level", year: 2020, category: "movies", genre: "Action", desc: "Trapped in a time loop that constantly repeats the day of his murder, a former special forces agent must unlock the myst", poster: "https://m.media-amazon.com/images/M/MV5BNThlODU1ZjAtMWZkOS00NDc4LWE5ZjYtZTk1NzYwZTdjMmJhXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "100m (6.8)", emoji: "💥" },
+  { id: "dawn_of_the_dead", title: "Dawn of the Dead", year: 2004, category: "movies", genre: "Action", desc: "A nurse, a policeman, a young married couple and other survivors of a worldwide plague that is producing aggressive, fle", poster: "https://m.media-amazon.com/images/M/MV5BM2ZiYjNlMWYtNTc2My00ZTM4LWJhMjQtM2FlOWM0ZmE0Yjg1XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "101m (7.2)", emoji: "💥" },
+  { id: "deep_blue_sea", title: "Deep Blue Sea", year: 1999, category: "movies", genre: "Action", desc: "Searching for a cure to Alzheimer\'s disease, a group of scientists on an isolated research facility become the prey, as ", poster: "https://m.media-amazon.com/images/M/MV5BMTM5OTUyYWYtMGE2OS00ODEzLTk0ZjctZmQ5NzFlNWQ3OTAxXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "105m (5.9)", emoji: "💥" },
+  { id: "deep_water", title: "Deep Water", year: 2022, category: "movies", genre: "Crime", desc: "A well-to-do husband who allows his wife to have affairs in order to avoid a divorce becomes a prime suspect in the disa", poster: "https://m.media-amazon.com/images/M/MV5BZWNkNGUyZDMtNTk5Ni00NzQ1LTkyNTYtZmY4ZWY5ZjM5NmZmXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "115m (5.5)", emoji: "🕵️" },
+  { id: "devil", title: "Devil", year: 2010, category: "movies", genre: "Horror", desc: "A group of people are trapped in an elevator and the Devil is mysteriously amongst them.", poster: "https://m.media-amazon.com/images/M/MV5BZDRmYWMzYjYtODkyMS00YWU4LWJkYzMtMWM1Y2M5YjFlZGZhXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "80m (6.3)", emoji: "😱" },
+  { id: "dont_breathe_2", title: "Don\'t Breathe 2", year: 2021, category: "movies", genre: "Action", desc: "A blind war veteran trains his adopted daughter to face any danger, but they are ambushed when a vengeful stranger emerg", poster: "https://m.media-amazon.com/images/M/MV5BMWE2MGFjYzUtZGI4Ni00ZTVhLTg3YmItYzc0NDM3OWMzMzQzXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "98m (6.0)", emoji: "💥" },
+  { id: "dont_breathe", title: "Don\'t Breathe", year: 2016, category: "movies", genre: "Crime", desc: "Three delinquents break into the house of a war veteran who is blind to steal his money. However, they discover that the", poster: "https://m.media-amazon.com/images/M/MV5BNjAxOTJkMmEtNjg4MC00ODk3LTkwYmUtNjM3YzE5YTk1YTFjXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "88m (7.1)", emoji: "🕵️" },
+  { id: "fast_furious_f9", title: "F9: The Fast Saga", year: 2021, category: "movies", genre: "Action", desc: "Dom and the crew must take on an international terrorist who turns out to be Dom and Mia\'s estranged brother.", poster: "https://m.media-amazon.com/images/M/MV5BODJkMTQ5ZmQtNzQxYy00ZWNlLWI0ZGYtYjU1NzdiMjcyNDRmXkEyXkFqcGc@._V1_QL75_UX380_CR0,20,380,562_.jpg", videoUrl: "", duration: "143m (5.2)", emoji: "💥" },
+  { id: "get_out", title: "Get Out", year: 2017, category: "movies", genre: "Horror", desc: "A young African-American visits his white girlfriend\'s parents for the weekend, where his simmering uneasiness about the", poster: "https://m.media-amazon.com/images/M/MV5BMjUxMDQwNjcyNl5BMl5BanBnXkFtZTgwNzcwMzc0MTI@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "104m (7.8)", emoji: "😱" },
+  { id: "girl_in_the_basement", title: "Girl in the Basement", year: 2021, category: "movies", genre: "Crime", desc: "Sarah is a teen girl who is looking forward to her 18th birthday to move away from her controlling father Don. But befor", poster: "https://m.media-amazon.com/images/M/MV5BM2RiMjg4YTAtYzdkNy00MGRhLTlhYzAtZTY1MTJkODQ1ZTg1XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "88m (6.3)", emoji: "🕵️" },
+  { id: "gone_girl", title: "Gone Girl", year: 2014, category: "movies", genre: "Drama", desc: "The husband of a missing woman becomes the main suspect in her disappearance.", poster: "https://m.media-amazon.com/images/M/MV5BMTk0MDQ3MzAzOV5BMl5BanBnXkFtZTgwNzU1NzE3MjE@._V1_QL75_UY562_CR1,0,380,562_.jpg", videoUrl: "", duration: "149m (8.1)", emoji: "🎭" },
+  { id: "greenland", title: "Greenland", year: 2020, category: "movies", genre: "Action", desc: "To save his family from a catastrophic end of times, a man embarks on a risky quest to locate the last hope for salvatio", poster: "https://m.media-amazon.com/images/M/MV5BZWZjZGMwNmUtYmRiMS00ODEwLTgyYjQtOGUzMDNhOGU3OGQ0XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "119m (6.4)", emoji: "💥" },
+  { id: "house_of_gucci", title: "House of Gucci", year: 2021, category: "movies", genre: "Biography", desc: "When Patrizia Reggiani, an outsider from humble beginnings, marries into the Gucci family, her unbridled ambition begins", poster: "https://m.media-amazon.com/images/M/MV5BMmQ3OTRiYWItMGRiOC00ZTVmLWJjMjEtNjZhNDQ5NjIxODNjXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "158m (6.6)", emoji: "📚" },
+  { id: "hypnotic", title: "Hypnotic", year: 2021, category: "movies", genre: "Horror", desc: "A young woman seeking self-improvement enlists the help of a renowned hypnotherapist. But after a handful of intense ses", poster: "https://m.media-amazon.com/images/M/MV5BMGI4YzJmYmQtZWFjMC00ZDRhLWE3ZjgtM2E4YTJlNjkxMmM1XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "88m (5.3)", emoji: "😱" },
+  { id: "malignant", title: "Malignant", year: 2021, category: "movies", genre: "Crime", desc: "Madison is paralyzed by shocking visions of grisly murders, and her torment worsens as she discovers that these waking d", poster: "https://m.media-amazon.com/images/M/MV5BNTU3YjhmMTQtNmM5Yi00MDI2LTk0M2UtZGY5ZTNkYjIzNDE3XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "111m (6.2)", emoji: "🕵️" },
+  { id: "marriage_story", title: "Marriage Story", year: 2019, category: "movies", genre: "Drama", desc: "A stage director and his actor wife struggle through a grueling divorce that pushes them to their personal and creative ", poster: "https://m.media-amazon.com/images/M/MV5BNmE0OWJlM2MtNzhmMi00YmQyLTlmY2EtZmUzNzBiNGRlN2JkXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "137m (7.9)", emoji: "🎭" },
+  { id: "me_time", title: "Me Time", year: 2022, category: "movies", genre: "Comedy", desc: "When a stay-at-home dad who dedicates all his time to his children is persuaded to take time off for himself, he gets mi", poster: "https://m.media-amazon.com/images/M/MV5BYjYzMTkyYjUtYTVmYi00Y2ZjLTg2N2ItZGFhODAzYTVmYzkzXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "101m (5.1)", emoji: "😂" },
+  { id: "memory", title: "Memory", year: 2022, category: "movies", genre: "Action", desc: "An assassin-for-hire finds that he\'s become a target after he refuses to complete a job for a dangerous criminal organiz", poster: "https://m.media-amazon.com/images/M/MV5BNjk1ZjBkMTgtZmIwMi00OTM0LTk4ZGQtNDE0YmNkY2I3YTMyXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "114m (5.8)", emoji: "💥" },
+  { id: "nightmare_alley", title: "Nightmare Alley", year: 2021, category: "movies", genre: "Crime", desc: "A grifter working his way up from low-ranking carnival worker to lauded psychic medium matches wits with a psychologist ", poster: "https://m.media-amazon.com/images/M/MV5BNThlMDUzMDEtOTY1ZC00MzI3LThlOGItYjI0MTdkZDliNDEzXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "150m (7.0)", emoji: "🕵️" },
+  { id: "no_time_to_die", title: "No Time to Die", year: 2021, category: "movies", genre: "Action", desc: "James Bond has left active service. His peace is short-lived when Felix Leiter, an old friend from the CIA, turns up ask", poster: "https://m.media-amazon.com/images/M/MV5BZGZiOGZhZDQtZmRkNy00ZmUzLTliMGEtZGU0NjExOGMxZDVkXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "163m (7.3)", emoji: "💥" },
+  { id: "orphan_first_kill", title: "Orphan: First Kill", year: 2022, category: "movies", genre: "Crime", desc: "After orchestrating a brilliant escape from an Estonian psychiatric facility, Esther travels to America by impersonating", poster: "https://m.media-amazon.com/images/M/MV5BYzU1MGZmODctODU0ZC00YjllLWE3ZmYtNmFmZjE1ZjE3YzVkXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "99m (5.9)", emoji: "🕵️" },
+  { id: "prey", title: "Prey", year: 2022, category: "movies", genre: "Action", desc: "Naru, a skilled warrior of the Comanche Nation, fights to protect her tribe against one of the first highly-evolved Pred", poster: "https://m.media-amazon.com/images/M/MV5BMWVjYTBlYjktODhjZS00OTUyLTg4MzctODI4MTkyNDE5YzY0XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "100m (7.1)", emoji: "💥" },
+  { id: "return_to_sender", title: "Return to Sender", year: 2015, category: "movies", genre: "Drama", desc: "A nurse living in small town goes on a blind date with a man who is not the person he says he is.", poster: "https://m.media-amazon.com/images/M/MV5BMTkzMDU0MzYxM15BMl5BanBnXkFtZTgwNjAwNDUxNjE@._V1_SX300.jpg", videoUrl: "", duration: "92m (5.1)", emoji: "🎭" },
+  { id: "rogue_agent", title: "Rogue Agent", year: 2022, category: "movies", genre: "Action", desc: "The extraordinary and chilling story of career conman Robert Freegard who masqueraded as an MI5 agent and fooled people ", poster: "https://m.media-amazon.com/images/M/MV5BNGI3MTkzM2MtYzk4Ny00ZjIyLTg1M2YtMzVlOThjNzU2MjM5XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "115m (6.5)", emoji: "💥" },
+  { id: "safe_haven", title: "Safe Haven", year: 2013, category: "movies", genre: "Drama", desc: "A young woman with a mysterious past lands in Southport, North Carolina where her bond with a widower forces her to conf", poster: "https://m.media-amazon.com/images/M/MV5BMTg4MzcxODA3OV5BMl5BanBnXkFtZTcwMTYzNDkwOQ@@._V1_SX300.jpg", videoUrl: "", duration: "115m (6.7)", emoji: "🎭" },
+  { id: "the_black_phone", title: "The Black Phone", year: 2021, category: "movies", genre: "Horror", desc: "After being abducted and locked in a basement, a boy starts receiving calls on a disconnected phone from the killer\'s pr", poster: "https://m.media-amazon.com/images/M/MV5BMjFhZTcxOTktMzllMS00MzIzLWJhODEtZDU5YTFkNzRjZWQyXkEyXkFqcGc@._V1_QL75_UX380_CR0,20,380,562_.jpg", videoUrl: "", duration: "103m (6.9)", emoji: "😱" },
+  { id: "the_conjuring_devil", title: "The Conjuring: The Devil Made Me Do It", year: 2021, category: "movies", genre: "Horror", desc: "Arne Cheyenne Johnson stabs and murders his landlord, claiming to be under demonic possession while Ed and Lorraine Warr", poster: "https://m.media-amazon.com/images/M/MV5BNThkYWE3OGItNzAyNC00N2U4LThjY2QtMGQwYjZhYTI1MzMwXkEyXkFqcGc@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "112m (6.2)", emoji: "😱" },
+  { id: "the_lost_city", title: "The Lost City", year: 2022, category: "movies", genre: "Action", desc: "A reclusive romance novelist on a book tour with her cover model gets swept up in a kidnapping attempt that lands them b", poster: "https://m.media-amazon.com/images/M/MV5BZjA4YmZjMWItZGNkNS00ODFkLWEwNjUtNGNhMzViZDRmMzgxXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "112m (6.1)", emoji: "💥" },
+  { id: "the_northman", title: "The Northman", year: 2022, category: "movies", genre: "Action", desc: "A young Viking prince is on a quest to avenge his father\'s murder.", poster: "https://m.media-amazon.com/images/M/MV5BYzgwM2JiY2MtNWQ5OC00NDc1LWExMjYtYmY2YjViZmViYWM5XkEyXkFqcGc@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "137m (7.0)", emoji: "💥" },
+  { id: "the_suicide_squad", title: "The Suicide Squad", year: 2021, category: "movies", genre: "Action", desc: "Supervillains Harley Quinn, Bloodsport, Peacemaker, and a collection of nutty cons at Belle Reve prison join the super-s", poster: "https://m.media-amazon.com/images/M/MV5BMWU3Y2NlZmEtMjJjNS00ZWMxLWE1MzctYWYyMjMzMDdkNTE4XkEyXkFqcGc@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "132m (7.2)", emoji: "💥" },
+  { id: "the_voyeurs", title: "The Voyeurs", year: 2021, category: "movies", genre: "Drama", desc: "Pippa and Thomas move into their dream apartment, but notice that their windows look directly into the apartment opposit", poster: "https://m.media-amazon.com/images/M/MV5BOTQ5NDVjZjAtZDM4NC00NmQzLTkwZmYtYjQ1YjQ5NDJjZjFlXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "116m (6.1)", emoji: "🎭" },
+  { id: "the_banker", title: "The Banker", year: 2020, category: "movies", genre: "Biography", desc: "In the 1960s, two African-American entrepreneurs hire a working-class white man to pretend to be the head of their busin", poster: "https://m.media-amazon.com/images/M/MV5BZTRiY2YyNmYtY2M4My00MDBkLWE4ZDctZDlmMWQ4ZjMzZjQ2XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "120m (7.3)", emoji: "📚" },
+  { id: "the_harder_they_fall", title: "The Harder They Fall", year: 2021, category: "movies", genre: "Action", desc: "When an outlaw discovers his enemy is being released from prison, he reunites his gang to seek revenge.", poster: "https://m.media-amazon.com/images/M/MV5BNDBjOTQyZTEtZTdhYS00ZTNlLWE3NTgtZGY3YmZlZTdhYjUxXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "139m (6.6)", emoji: "💥" },
+  { id: "the_man_from_toronto", title: "The Man from Toronto", year: 2022, category: "movies", genre: "Action", desc: "The world\'s deadliest assassin and New York\'s biggest screw-up are mistaken for each other at an Airbnb rental.", poster: "https://m.media-amazon.com/images/M/MV5BMzhlZTZjZDItNzFhYi00MmM3LWFlNTEtNjVlOWM2NmMyMGU5XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "110m (5.8)", emoji: "💥" },
+  { id: "the_night_clerk", title: "The Night Clerk", year: 2020, category: "movies", genre: "Crime", desc: "A voyeuristic hotel clerk becomes the subject of a murder investigation.", poster: "https://m.media-amazon.com/images/M/MV5BODUyOWNkYmItNDk5NS00YmZmLWI2YzctNDg4MjkzODZjZGE2XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "90m (5.6)", emoji: "🕵️" },
+  { id: "the_tomorrow_war", title: "The Tomorrow War", year: 2021, category: "movies", genre: "Action", desc: "A family man travels to the year 2051 to join a global war against a deadly alien species.", poster: "https://m.media-amazon.com/images/M/MV5BYmUyNzY2YWYtNWQ0My00ODMwLTkwOTQtOTA0ZjM0MjRmYjJiXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "138m (6.6)", emoji: "💥" },
+  { id: "venom_carnage", title: "Venom: Let There Be Carnage", year: 2021, category: "movies", genre: "Action", desc: "Eddie Brock attempts to reignite his career by interviewing serial killer Cletus Kasady, who becomes the host of the sym", poster: "https://m.media-amazon.com/images/M/MV5BZGIxMTU1MjItM2FmMi00YmFiLTgwNDMtMTczYmVjYTBhNGZhXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "97m (5.9)", emoji: "💥" },
+
+  // ═══════════════════════════════════════════════════
+  // MOVIES — "Movies for mano 2" folder
+  // ═══════════════════════════════════════════════════
+  { id: "28_years_later", title: "28 Years Later: The Bone Temple", year: 2025, category: "movies", genre: "Horror", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BNjgwYTI0YjctMWYzNS00MmI1LWI5YTctNmE1YjBkNDFlNWMxXkEyXkFqcGc@._V1_QL75_UY562_CR35,0,380,562_.jpg", videoUrl: "", duration: "", emoji: "😱" },
+  { id: "a_different_man", title: "A Different Man", year: 2024, category: "movies", genre: "Drama", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BYTQ0NDI2NzItZjNiOC00ZDc0LWJiNGMtMzZmMGM2NmVjMmJkXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🎭" },
+  { id: "jonas_christmas", title: "A Very Jonas Christmas Movie", year: 2024, category: "movies", genre: "Comedy", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BNWFjODc1NDYtNTAzMS00NDdjLTk3ZDItNTJjMDcwZTY0NWU1XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "😂" },
+  { id: "bad_boys_4", title: "Bad Boys: Ride or Die", year: 2024, category: "movies", genre: "Action", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BZWNjZWUwNDgtYTM4ZC00Zjk0LTg3ZWItNGEyZmVkZTIxZDk0XkEyXkFqcGc@._V1_QL75_UX380_CR0,4,380,562_.jpg", videoUrl: "", duration: "", emoji: "💥" },
+  { id: "blink_twice", title: "Blink Twice", year: 2024, category: "movies", genre: "Thriller", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMzczYmQ0NTUtMTM5OS00Mzc4LWExZDYtOWE4YjRkOWJkYWRlXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🔪" },
+  { id: "companion", title: "Companion", year: 2025, category: "movies", genre: "Sci-Fi", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BYjkyZTA5NzAtYWU3Zi00MWM4LTgxNzAtNDQxY2JmNjMwYjk4XkEyXkFqcGc@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "", emoji: "🚀" },
+  { id: "die_my_love", title: "Die My Love", year: 2025, category: "movies", genre: "Drama", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BYjc5OWZlZmYtMTg3Yy00YzFmLTg0YTgtNjVjN2M2ZWJjOWM1XkEyXkFqcGc@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "", emoji: "🎭" },
+  { id: "dont_move", title: "Don\'t Move", year: 2024, category: "movies", genre: "Thriller", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BZmFlMTMyMzQtNmI4NC00YTcyLTgwOGUtMzc4YjcyNDUyOGY3XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🔪" },
+  { id: "f1_movie", title: "F1", year: 2025, category: "movies", genre: "Action", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BNGI0MDI4NjEtOWU3ZS00ODQyLWFhYTgtNGYxM2ZkM2Q2YjE3XkEyXkFqcGc@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "", emoji: "💥" },
+  { id: "free_state_of_jones", title: "Free State of Jones", year: 2016, category: "movies", genre: "Drama", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMTA4NTYyMTcwNTFeQTJeQWpwZ15BbWU4MDI0NTg0MDkx._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🎭" },
+  { id: "heads_of_state", title: "Heads of State", year: 2025, category: "movies", genre: "Action", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BYWFmNjg0ZGMtZmI5OC00YTAwLWFiMmMtOWRkNzQ0OTE1YWEwXkEyXkFqcGc@._V1_QL75_UX380_CR0,4,380,562_.jpg", videoUrl: "", duration: "", emoji: "💥" },
+  { id: "if_i_had_legs", title: "If I Had Legs I\'d Kick You", year: 2025, category: "movies", genre: "Drama", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMGRlMjIzMDctNzNkMS00MzEwLTlhZWEtM2FjYmE1ZmFjMzZlXkEyXkFqcGc@._V1_QL75_UX380_CR0,4,380,562_.jpg", videoUrl: "", duration: "", emoji: "🎭" },
+  { id: "in_a_violent_nature", title: "In a Violent Nature", year: 2024, category: "movies", genre: "Horror", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BNDA4M2MyM2MtNmNkMy00NmJkLTg0ZDctOWY5ZGU1ZjUxMjcxXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "😱" },
+  { id: "kinds_of_kindness", title: "Kinds of Kindness", year: 2024, category: "movies", genre: "Drama", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMjZmZGY1MzMtNDVkNi00NjE2LTlkMzMtMmUzNWExY2ExZWI2XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🎭" },
+  { id: "knox_goes_away", title: "Knox Goes Away", year: 2024, category: "movies", genre: "Crime", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BNTY1ZDVhZTgtODg1MC00YWNkLWI4ODctMzZjZmE4NWVkN2Q5XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🕵️" },
+  { id: "lucky_number_slevin", title: "Lucky Number Slevin", year: 2006, category: "movies", genre: "Crime", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BNzJkYjA4YjEtMTZlZi00NjFjLTgwNDMtN2VhYTY0MDU3ZjcwXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🕵️" },
+  { id: "megan_2", title: "M3GAN 2.0", year: 2025, category: "movies", genre: "Sci-Fi", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMzFmNjVjZWQtZjI5Zi00YThiLTg0ZWItZDdjYzhhZDE1NTE2XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🚀" },
+  { id: "oddity", title: "Oddity", year: 2024, category: "movies", genre: "Horror", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMWU5Yjc0N2MtZjhlYS00MTM3LWI5YWUtZDg5MzcxZjEyZWJmXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "😱" },
+  { id: "one_battle", title: "One Battle After Another", year: 2025, category: "movies", genre: "Action", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMzBkZmQ0NjMtNTZlMy00ZjdlLTg5ODUtYWFlNGM0YzE3MTg0XkEyXkFqcGc@._V1_QL75_UY562_CR35,0,380,562_.jpg", videoUrl: "", duration: "", emoji: "💥" },
+  { id: "primate", title: "Primate", year: 2025, category: "movies", genre: "Adventure", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BOWRjMzEyMjQtYjg1OS00YzU4LTgxNzQtZWVhNjczNGNiMTE2XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🌍" },
+  { id: "sinners", title: "Sinners", year: 2025, category: "movies", genre: "Horror", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BNjIwZWY4ZDEtMmIxZS00NDA4LTg4ZGMtMzUwZTYyNzgxMzk5XkEyXkFqcGc@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "", emoji: "😱" },
+  { id: "speak_no_evil", title: "Speak No Evil", year: 2024, category: "movies", genre: "Thriller", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMWI2OWFjNjgtOTQ2Zi00MjlmLTg2MGYtNmE4MjMyZjIzMDA0XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🔪" },
+  { id: "the_accountant_2", title: "The Accountant 2", year: 2025, category: "movies", genre: "Action", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BYjFiY2I0NTEtNjdjNy00MTljLThkOWYtMzNiYjYyMDcxYjhkXkEyXkFqcGc@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "", emoji: "💥" },
+  { id: "the_amateur", title: "The Amateur", year: 2025, category: "movies", genre: "Thriller", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BYjhkZjM3ZWYtMjUxMS00YzhlLTkxZWYtMzhkMzFhOTQ1NjRkXkEyXkFqcGc@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "", emoji: "🔪" },
+  { id: "the_girl_who_escaped", title: "The Girl Who Escaped", year: 2024, category: "movies", genre: "Thriller", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BZDZmMzJjYTItNzgwZC00ZTk3LWI1OWMtZThjM2QxZmUwYjQ4XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🔪" },
+  { id: "the_roses", title: "The Roses", year: 2024, category: "movies", genre: "Drama", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BNjgwNTUwNzItZjNiNC00NzNiLWI3M2UtNDVhZTBjZjQ3NDNiXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🎭" },
+  { id: "the_running_man", title: "The Running Man", year: 2025, category: "movies", genre: "Action", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMTk5NjU4OTAtNTEyMS00ZjBiLTg0ZjMtOGJiMGJhNjQ3MzYxXkEyXkFqcGc@._V1_QL75_UX380_CR0,0,380,562_.jpg", videoUrl: "", duration: "", emoji: "💥" },
+  { id: "the_bride", title: "The Bride", year: 2025, category: "movies", genre: "Horror", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BYTllNWIxNjktMzhmZC00YjA5LWFiZTgtMzRlMThhMmUwMWJmXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "😱" },
+  { id: "together", title: "Together", year: 2024, category: "movies", genre: "Drama", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BOWFlN2U5YjctMzg1YS00OWU4LWJhOGUtYTVlOWM0NjgwMzZmXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🎭" },
+  { id: "trap", title: "Trap", year: 2024, category: "movies", genre: "Thriller", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMzJiN2UyZjgtMjQ3MS00MDhhLTg5ZDItZmVjMTU3MTcwNzE4XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🔪" },
+  { id: "until_dawn", title: "Until Dawn", year: 2025, category: "movies", genre: "Horror", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BZWU4NDY0ODktOGI3OC00NWE1LWIwYmQtNmJiZWU3NmZlMDhkXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "😱" },
+  { id: "whistle", title: "Whistle", year: 2025, category: "movies", genre: "Drama", desc: "", poster: "https://m.media-amazon.com/images/M/MV5BMDcwYTlkYmYtMTk0Zi00ODJlLWI2ZDYtNWVmZTlhNzc3ODliXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "", emoji: "🎭" },
+
+  // ═══════════════════════════════════════════════════
+  // TV SERIES
+  // ═══════════════════════════════════════════════════
+  { id: "lost", title: "Lost", year: 2004, category: "series", genre: "Sci-Fi", desc: "Survivors of a plane crash discover a mysterious island.", poster: "https://m.media-amazon.com/images/M/MV5BZmZhY2ViYzYtMTQ0NS00NDcyLWIxZTYtMGUyODE0NDA0NmNkXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "6 Seasons", emoji: "📺" },
+  { id: "malcolm_in_the_middle", title: "Malcolm in the Middle", year: 2000, category: "series", genre: "Comedy", desc: "A gifted boy navigates life with his dysfunctional family.", poster: "https://m.media-amazon.com/images/M/MV5BY2M0Y2M4YTQtZDdjMC00MDZiLWI1OGEtZDdjZjBiZDE4ODU3XkEyXkFqcGc@._V1_QL75_UY562_CR1,0,380,562_.jpg", videoUrl: "", duration: "7 Seasons", emoji: "📺" },
+  { id: "married_with_children", title: "Married with Children", year: 1987, category: "series", genre: "Comedy", desc: "The hilariously dysfunctional Bundy family.", poster: "https://m.media-amazon.com/images/M/MV5BN2M5MjIwY2MtNmRhZC00MjFlLWEwM2ItODFmNjEyZmMzNjFlXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "11 Seasons", emoji: "📺" },
+  { id: "person_of_interest", title: "Person of Interest", year: 2011, category: "series", genre: "Crime", desc: "An ex-CIA agent prevents crimes using AI surveillance.", poster: "https://m.media-amazon.com/images/M/MV5BOTcxNDJiMTUtN2ZhZS00OGE1LWJmZmYtN2VhYThiZTBhYWM1XkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "5 Seasons", emoji: "📺" },
+  { id: "succession", title: "Succession", year: 2018, category: "series", genre: "Drama", desc: "The Roy family battles for control of a media empire.", poster: "https://m.media-amazon.com/images/M/MV5BYTY4YTVkY2QtMjRmOS00YzliLWIxOWQtMTdkOTVkN2UzODNmXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "4 Seasons", emoji: "📺" },
+
+  // ═══════════════════════════════════════════════════
+  // KIDS
+  // ═══════════════════════════════════════════════════
+  { id: "cocomelon", title: "CoCoMelon", year: 2023, category: "kids", genre: "Animation", desc: "Fun nursery rhymes and songs for little ones.", poster: "https://m.media-amazon.com/images/M/MV5BMmM5OGI0YjAtZGFlMC00MThmLTgwM2MtZTdhYmQ3YzJlNmYwXkEyXkFqcGc@._V1_SX300.jpg", videoUrl: "", duration: "Episodes", emoji: "🍉" },
+];
+
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║              APPLICATION CODE (don't edit below)            ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+let currentUser = null;
+let selectedProfileId = null;
+
+// ── STORAGE HELPERS ──
+function getUserData(userId) {
+  try { return JSON.parse(localStorage.getItem("flix_" + userId) || "{}"); }
+  catch(e) { return {}; }
+}
+function setUserData(userId, data) {
+  localStorage.setItem("flix_" + userId, JSON.stringify(data));
+}
+function getWatchProgress(userId, movieId) {
+  const d = getUserData(userId);
+  return (d.progress || {})[movieId] || { time: 0, percent: 0, lastWatched: 0 };
+}
+function setWatchProgress(userId, movieId, time, percent) {
+  const d = getUserData(userId);
+  if (!d.progress) d.progress = {};
+  d.progress[movieId] = { time: time, percent: percent, lastWatched: Date.now() };
+  if (!d.recentlyWatched) d.recentlyWatched = [];
+  d.recentlyWatched = [movieId, ...d.recentlyWatched.filter(function(x){return x !== movieId})].slice(0, 20);
+  setUserData(userId, d);
+}
+
+// ── MASTER PASSWORD ──
+function checkMasterPassword() {
+  const input = document.getElementById("masterPassword").value;
+  if (input === MASTER_PASSWORD) {
+    document.getElementById("lockScreen").classList.add("hidden");
+    document.getElementById("profileSelect").classList.remove("hidden");
+    renderProfiles();
+    sessionStorage.setItem("flix_unlocked", "1");
+  } else {
+    document.getElementById("masterError").textContent = "Incorrect password";
+    document.getElementById("masterPassword").value = "";
+  }
+}
+document.getElementById("masterPassword").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") checkMasterPassword();
+});
+
+// Check if already unlocked this session
+if (sessionStorage.getItem("flix_unlocked")) {
+  document.getElementById("lockScreen").classList.add("hidden");
+  const lastUser = sessionStorage.getItem("flix_user");
+  if (lastUser) {
+    currentUser = PROFILES.find(function(p){return p.id === lastUser});
+    if (currentUser) {
+      document.getElementById("profileSelect").classList.add("hidden");
+      enterApp();
+    } else {
+      document.getElementById("profileSelect").classList.remove("hidden");
+      renderProfiles();
+    }
+  } else {
+    document.getElementById("profileSelect").classList.remove("hidden");
+    renderProfiles();
+  }
+}
+
+// ── PROFILES ──
+function renderProfiles() {
+  const grid = document.getElementById("profilesGrid");
+  grid.innerHTML = PROFILES.map(function(p) {
+    return '<div class="profile-card" onclick="selectProfile(\'' + p.id + '\')">' +
+      '<div class="profile-avatar" style="background:' + p.color + '">' + p.avatar + '</div>' +
+      '<div class="profile-name">' + p.name + '</div></div>';
+  }).join("");
+}
+function selectProfile(id) {
+  selectedProfileId = id;
+  const profile = PROFILES.find(function(p){return p.id === id});
+  document.getElementById("passwordModalUser").textContent = "Enter PIN for " + profile.name;
+  document.getElementById("profilePassword").value = "";
+  document.getElementById("profileError").textContent = "";
+  document.getElementById("passwordModal").classList.remove("hidden");
+  setTimeout(function(){ document.getElementById("profilePassword").focus(); }, 100);
+}
+function checkProfilePassword() {
+  const pin = document.getElementById("profilePassword").value;
+  const profile = PROFILES.find(function(p){return p.id === selectedProfileId});
+  if (pin === profile.pin) {
+    currentUser = profile;
+    sessionStorage.setItem("flix_user", profile.id);
+    document.getElementById("passwordModal").classList.add("hidden");
+    document.getElementById("profileSelect").classList.add("hidden");
+    enterApp();
+  } else {
+    document.getElementById("profileError").textContent = "Incorrect PIN";
+    document.getElementById("profilePassword").value = "";
+  }
+}
+function closePasswordModal() {
+  document.getElementById("passwordModal").classList.add("hidden");
+}
+
+// ── ENTER APP ──
+function enterApp() {
+  document.getElementById("app").classList.add("visible");
+  document.getElementById("navAvatar").style.background = currentUser.color;
+  document.getElementById("navAvatar").textContent = currentUser.avatar;
+  showHome();
+}
+
+// ── RENDER MOVIE CARD ──
+function renderCard(movie) {
+  const progress = currentUser ? getWatchProgress(currentUser.id, movie.id) : null;
+  const progressBar = (progress && progress.percent > 0) ?
+    '<div class="progress-bar"><div class="progress-bar-fill" style="width:' + progress.percent + '%"></div></div>' : '';
+
+  const posterContent = movie.poster ?
+    '<img class="movie-poster" src="' + movie.poster + '" alt="' + movie.title + '" loading="lazy" onerror="this.outerHTML=makePlaceholder(\'' + movie.emoji + '\',\'' + movie.title.replace(/'/g,"\\'") + '\')">' :
+    makePlaceholder(movie.emoji, movie.title);
+
+  return '<div class="movie-card" onclick="playMovie(\'' + movie.id + '\')">' +
+    posterContent +
+    '<div class="movie-card-info">' +
+    '<div class="movie-card-title">' + movie.title + '</div>' +
+    '<div class="movie-card-meta">' + movie.year + ' \u00b7 ' + movie.genre + ' \u00b7 ' + movie.duration + '</div>' +
+    progressBar + '</div></div>';
+}
+function makePlaceholder(emoji, title) {
+  return '<div class="movie-poster-placeholder"><span class="emoji">' + emoji + '</span><span class="title">' + title + '</span></div>';
+}
+
+// ── HOME VIEW ──
+function showHome() {
+  setActiveNav("home");
+  document.getElementById("homeView").style.display = "block";
+  document.getElementById("searchResults").classList.remove("visible");
+  document.getElementById("categoryView").classList.remove("visible");
+  renderHero();
+  renderRows();
+}
+
+function renderHero() {
+  const featured = CATALOG[Math.floor(Math.random() * CATALOG.length)];
+  const heroEl = document.getElementById("heroSection");
+  const bgContent = featured.poster ? '<img src="' + featured.poster + '" alt="">' : '';
+  heroEl.innerHTML = '<div class="hero-bg">' + bgContent + '</div>' +
+    '<div class="hero-overlay"></div>' +
+    '<div class="hero-content"><h1>' + featured.title + '</h1>' +
+    '<p>' + featured.desc + '</p>' +
+    '<div class="hero-buttons">' +
+    '<button class="btn-play" onclick="playMovie(\'' + featured.id + '\')">\u25b6 Play</button>' +
+    '<button class="btn-info" onclick="playMovie(\'' + featured.id + '\')">\u2139 More Info</button>' +
+    '</div></div>';
+}
+
+function renderRows() {
+  const container = document.getElementById("contentRows");
+  let html = "";
+
+  // Continue Watching
+  if (currentUser) {
+    const userData = getUserData(currentUser.id);
+    const recent = (userData.recentlyWatched || [])
+      .map(function(id){ return CATALOG.find(function(m){return m.id === id}); })
+      .filter(function(m){ return m && ((userData.progress[m.id] || {}).percent || 0) < 95; });
+    if (recent.length > 0) {
+      html += '<div class="row"><div class="row-title">Continue Watching for ' + currentUser.name + '</div>' +
+        '<div class="row-scroll">' + recent.map(renderCard).join("") + '</div></div>';
+    }
+  }
+
+  // Recently Added (all, sorted by year)
+  const sorted = CATALOG.slice().sort(function(a,b){return b.year - a.year});
+  html += '<div class="row"><div class="row-title">Recently Added</div>' +
+    '<div class="row-scroll">' + sorted.slice(0,15).map(renderCard).join("") + '</div></div>';
+
+  // By Genre
+  const genres = [];
+  CATALOG.forEach(function(m){ if (genres.indexOf(m.genre) === -1) genres.push(m.genre); });
+  genres.forEach(function(genre) {
+    const items = CATALOG.filter(function(m){return m.genre === genre});
+    if (items.length > 0) {
+      html += '<div class="row"><div class="row-title">' + genre + '</div>' +
+        '<div class="row-scroll">' + items.map(renderCard).join("") + '</div></div>';
+    }
+  });
+
+  // Movies
+  const movies = CATALOG.filter(function(m){return m.category === "movies"});
+  if (movies.length > 0) {
+    html += '<div class="row"><div class="row-title">All Movies</div>' +
+      '<div class="row-scroll">' + movies.map(renderCard).join("") + '</div></div>';
+  }
+
+  // Series
+  const series = CATALOG.filter(function(m){return m.category === "series"});
+  if (series.length > 0) {
+    html += '<div class="row"><div class="row-title">TV Series</div>' +
+      '<div class="row-scroll">' + series.map(renderCard).join("") + '</div></div>';
+  }
+
+  container.innerHTML = html;
+}
+
+// ── SEARCH ──
+function toggleSearch() {
+  const box = document.getElementById("searchBox");
+  box.classList.toggle("open");
+  if (box.classList.contains("open")) {
+    document.getElementById("searchInput").focus();
+  } else {
+    document.getElementById("searchInput").value = "";
+    showHome();
+  }
+}
+function handleSearch(query) {
+  if (!query || query.length < 2) { showHome(); return; }
+  const q = query.toLowerCase();
+  const results = CATALOG.filter(function(m) {
+    return m.title.toLowerCase().indexOf(q) !== -1 ||
+      m.genre.toLowerCase().indexOf(q) !== -1 ||
+      m.category.toLowerCase().indexOf(q) !== -1 ||
+      m.desc.toLowerCase().indexOf(q) !== -1;
+  });
+  document.getElementById("homeView").style.display = "none";
+  document.getElementById("categoryView").classList.remove("visible");
+  document.getElementById("searchResults").classList.add("visible");
+  document.getElementById("searchTitle").textContent =
+    results.length > 0 ? 'Results for "' + query + '"' : 'No results for "' + query + '"';
+  document.getElementById("searchGrid").innerHTML = results.map(renderCard).join("");
+}
+
+// ── CATEGORY VIEW ──
+function showCategory(cat) {
+  setActiveNav(cat);
+  document.getElementById("homeView").style.display = "none";
+  document.getElementById("searchResults").classList.remove("visible");
+  document.getElementById("categoryView").classList.add("visible");
+  const titles = { movies: "Movies", series: "TV Series", kids: "Kids & Family" };
+  document.getElementById("categoryTitle").textContent = titles[cat] || cat;
+  const items = CATALOG.filter(function(m){return m.category === cat});
+  document.getElementById("categoryGrid").innerHTML =
+    items.length > 0 ? items.map(renderCard).join("") :
+    '<p style="color:#666;grid-column:1/-1;text-align:center;padding:3rem">No titles in this category yet.</p>';
+}
+
+// ── PLAYER ──
+let playerInterval = null;
+
+// Convert SRT subtitle text to WebVTT format
+function srtToVtt(srt) {
+  var vtt = "WEBVTT\n\n";
+  vtt += srt.replace(/\r\n/g, "\n").replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2");
+  return vtt;
+}
+
+// Toggle subtitle track on/off
+function toggleSubtitles() {
+  var video = document.querySelector("#playerVideo video");
+  var btn = document.getElementById("subtitleBtn");
+  if (!video || !video.textTracks.length) return;
+  var track = video.textTracks[0];
+  if (track.mode === "showing") {
+    track.mode = "hidden";
+    btn.classList.remove("active");
+  } else {
+    track.mode = "showing";
+    btn.classList.add("active");
+  }
+}
+
+// Try loading subtitles from multiple possible paths
+function tryLoadSubtitles(video, movie) {
+  var subBtn = document.getElementById("subtitleBtn");
+  subBtn.style.display = "none";
+  var urls = [];
+  if (movie.subtitleUrl) urls.push(movie.subtitleUrl);
+  if (movie.folderPath) {
+    var folder = movie.folderPath;
+    var base = folder.split("/").pop();
+    urls.push(folder + "/" + base + ".srt");
+    urls.push(folder + "/" + base + ".vtt");
+    urls.push(folder + "/English.srt");
+    urls.push(folder + "/Subs/English.srt");
+    urls.push(folder + "/" + base + ".eng.srt");
+  }
+  function tryNext(i) {
+    if (i >= urls.length) return;
+    var url = urls[i];
+    fetch(url).then(function(resp) {
+      if (!resp.ok) { tryNext(i + 1); return; }
+      return resp.text();
+    }).then(function(text) {
+      if (!text) return;
+      var vttText = text;
+      if (url.endsWith(".srt")) vttText = srtToVtt(text);
+      var blob = new Blob([vttText], {type: "text/vtt"});
+      var blobUrl = URL.createObjectURL(blob);
+      var track = document.createElement("track");
+      track.kind = "subtitles";
+      track.label = "English";
+      track.srclang = "en";
+      track.src = blobUrl;
+      track.default = true;
+      video.appendChild(track);
+      subBtn.style.display = "inline-block";
+      subBtn.classList.add("active");
+      track.addEventListener("load", function() {
+        if (video.textTracks.length > 0) video.textTracks[0].mode = "showing";
+      });
+    }).catch(function() { tryNext(i + 1); });
+  }
+  if (urls.length > 0) tryNext(0);
+}
+
+function playMovie(id) {
+  const movie = CATALOG.find(function(m){return m.id === id});
+  if (!movie) return;
+  document.getElementById("playerScreen").classList.add("visible");
+  document.getElementById("playerTitle").textContent = movie.title;
+  const progress = currentUser ? getWatchProgress(currentUser.id, id) : null;
+  const container = document.getElementById("playerVideo");
+  document.getElementById("subtitleBtn").style.display = "none";
+  document.getElementById("subtitleBtn").classList.remove("active");
+
+  if (movie.videoUrl) {
+    const video = document.createElement("video");
+    video.controls = true;
+    video.autoplay = true;
+    video.crossOrigin = "anonymous";
+    video.src = movie.videoUrl;
+    video.style.cssText = "width:100%;height:100%;background:#000";
+    if (progress && progress.time > 0) video.currentTime = progress.time;
+    video.addEventListener("loadedmetadata", function() {
+      if (progress && progress.time > 0) video.currentTime = progress.time;
+    });
+    playerInterval = setInterval(function() {
+      if (video.duration && currentUser) {
+        const pct = (video.currentTime / video.duration) * 100;
+        setWatchProgress(currentUser.id, id, video.currentTime, pct);
+      }
+    }, 5000);
+    video.addEventListener("pause", function() {
+      if (video.duration && currentUser) {
+        const pct = (video.currentTime / video.duration) * 100;
+        setWatchProgress(currentUser.id, id, video.currentTime, pct);
+      }
+    });
+    container.innerHTML = "";
+    container.appendChild(video);
+    tryLoadSubtitles(video, movie);
+  } else {
+    container.innerHTML = '<div class="player-placeholder">' +
+      '<div class="icon">\ud83c\udfac</div>' +
+      '<p><strong>' + movie.title + '</strong><br><br>' +
+      'No video link configured yet.<br>' +
+      'Run <code style="background:#333;padding:2px 6px;border-radius:3px">python setup-local.py</code> to scan &amp; link your movies.</p></div>';
+    if (currentUser) setWatchProgress(currentUser.id, id, 0, 1);
+  }
+
+  let hideTimeout;
+  const header = document.getElementById("playerHeader");
+  function showControls() {
+    header.style.opacity = "1";
+    clearTimeout(hideTimeout);
+    hideTimeout = setTimeout(function(){ header.style.opacity = "0"; }, 3000);
+  }
+  document.getElementById("playerScreen").addEventListener("mousemove", showControls);
+  document.getElementById("playerScreen").addEventListener("touchstart", showControls);
+  showControls();
+}
+function closePlayer() {
+  clearInterval(playerInterval);
+  const container = document.getElementById("playerVideo");
+  const video = container.querySelector("video");
+  if (video) { video.pause(); video.src = ""; }
+  container.innerHTML = "";
+  document.getElementById("playerScreen").classList.remove("visible");
+  if (document.getElementById("homeView").style.display !== "none") renderRows();
+}
+
+// ── NAV HELPERS ──
+function setActiveNav(name) {
+  document.querySelectorAll("[data-nav]").forEach(function(el) {
+    el.classList.toggle("active", el.dataset.nav === name);
+  });
+}
+function switchProfile() {
+  currentUser = null;
+  sessionStorage.removeItem("flix_user");
+  document.getElementById("app").classList.remove("visible");
+  document.getElementById("profileSelect").classList.remove("hidden");
+  renderProfiles();
+}
+function logout() {
+  currentUser = null;
+  sessionStorage.removeItem("flix_user");
+  sess
