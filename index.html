@@ -334,6 +334,7 @@ video::cue {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 </head>
 <body>
 
@@ -955,4 +956,402 @@ function switchProfile() {
 function logout() {
   currentUser = null;
   sessionStorage.removeItem("flix_user");
-  sess
+  sessionStorage.removeItem("flix_unlocked");
+  document.getElementById("app").classList.remove("visible");
+  document.getElementById("profileSelect").classList.add("hidden");
+  document.getElementById("lockScreen").classList.remove("hidden");
+  document.getElementById("masterPassword").value = "";
+}
+
+// ══════════════════════════════════════════════════════
+// ONEDRIVE OAUTH — Remote Streaming via Microsoft Graph
+// ══════════════════════════════════════════════════════
+
+const ONEDRIVE_CONFIG = {
+  clientId: "",  // Will be set after Azure app registration
+  authority: "https://login.microsoftonline.com/consumers",
+  redirectUri: window.location.origin + window.location.pathname,
+  scopes: ["Files.Read"],
+  // OneDrive folder paths (relative to drive root)
+  movieFolders: {
+    watched: "Seasons & Movies 2/Movies/00 - Watched",
+    mano2: "Seasons & Movies 2/Movies for mano 2",
+    season: "Seasons & Movies 2/Season"
+  }
+};
+
+let msalInstance = null;
+let msalAccount = null;
+let oneDriveToken = null;
+
+// Initialize MSAL when client ID is configured
+function initMSAL() {
+  if (!ONEDRIVE_CONFIG.clientId || typeof msal === "undefined") return false;
+  
+  const msalConfig = {
+    auth: {
+      clientId: ONEDRIVE_CONFIG.clientId,
+      authority: ONEDRIVE_CONFIG.authority,
+      redirectUri: ONEDRIVE_CONFIG.redirectUri,
+    },
+    cache: {
+      cacheLocation: "sessionStorage",
+      storeAuthStateInCookie: false,
+    }
+  };
+  
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+  
+  // Handle redirect response
+  msalInstance.handleRedirectPromise().then(function(response) {
+    if (response) {
+      msalAccount = response.account;
+      oneDriveToken = response.accessToken;
+      console.log("OneDrive: Signed in as " + msalAccount.username);
+      // If we were trying to play a movie, retry
+      const pendingMovie = sessionStorage.getItem("flix_pending_movie");
+      if (pendingMovie) {
+        sessionStorage.removeItem("flix_pending_movie");
+        setTimeout(function() { playMovie(pendingMovie); }, 500);
+      }
+    } else {
+      // Check for existing accounts
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        msalAccount = accounts[0];
+        console.log("OneDrive: Found cached account " + msalAccount.username);
+      }
+    }
+  }).catch(function(err) {
+    console.error("MSAL redirect error:", err);
+  });
+  
+  return true;
+}
+
+// Get access token (silently or via popup)
+async function getOneDriveToken() {
+  if (!msalInstance) {
+    if (!initMSAL()) return null;
+  }
+  
+  const tokenRequest = { scopes: ONEDRIVE_CONFIG.scopes };
+  
+  // Try silent token first
+  if (msalAccount) {
+    tokenRequest.account = msalAccount;
+    try {
+      const response = await msalInstance.acquireTokenSilent(tokenRequest);
+      oneDriveToken = response.accessToken;
+      return oneDriveToken;
+    } catch (e) {
+      console.log("Silent token failed, trying popup...");
+    }
+  }
+  
+  // Fall back to popup
+  try {
+    const response = await msalInstance.acquireTokenPopup(tokenRequest);
+    msalAccount = response.account;
+    oneDriveToken = response.accessToken;
+    return oneDriveToken;
+  } catch (e) {
+    console.error("OneDrive login failed:", e);
+    return null;
+  }
+}
+
+// Search OneDrive for a movie file by title
+async function findMovieOnOneDrive(movie) {
+  const token = await getOneDriveToken();
+  if (!token) return null;
+  
+  const headers = { "Authorization": "Bearer " + token };
+  
+  // Build search queries from the movie title
+  const cleanTitle = movie.title.replace(/[:']/g, "").replace(/\s+/g, " ").trim();
+  
+  // Try each movie folder
+  const folders = Object.values(ONEDRIVE_CONFIG.movieFolders);
+  
+  for (const folderPath of folders) {
+    try {
+      // List children of the folder
+      const encodedPath = encodeURIComponent(folderPath).replace(/%2F/g, "/");
+      const listUrl = "https://graph.microsoft.com/v1.0/me/drive/root:/" + encodedPath + ":/children?$top=200&$select=name,id,folder";
+      
+      const resp = await fetch(listUrl, { headers: headers });
+      if (!resp.ok) continue;
+      
+      const data = await resp.json();
+      const items = data.value || [];
+      
+      // Find matching folder by name
+      const titleLower = cleanTitle.toLowerCase();
+      const titleWords = titleLower.split(" ");
+      
+      let bestMatch = null;
+      let bestScore = 0;
+      
+      for (const item of items) {
+        if (!item.folder) continue;
+        const folderName = item.name.toLowerCase()
+          .replace(/[._\[\]()]/g, " ")
+          .replace(/\b(720|1080|2160|480)p\b.*/i, "")
+          .replace(/\b(bluray|brrip|webrip|web-dl|hdrip|dvdrip|hdtv)\b.*/i, "")
+          .replace(/\b(x264|x265|hevc|aac|ac3|dts)\b.*/i, "")
+          .replace(/\b(yify|yts|rarbg|evo)\b.*/i, "")
+          .replace(/\s+\d{4}\s*$/, "")
+          .trim();
+        
+        // Score by word overlap
+        const folderWords = folderName.split(/\s+/);
+        let overlap = 0;
+        for (const w of titleWords) {
+          if (folderWords.some(function(fw) { return fw.includes(w) || w.includes(fw); })) overlap++;
+        }
+        const score = overlap / Math.max(titleWords.length, 1);
+        
+        // Boost exact containment
+        if (folderName.includes(titleLower) || titleLower.includes(folderName)) {
+          if (score < 0.9) overlap = Math.max(overlap, titleWords.length - 1);
+        }
+        
+        const finalScore = overlap / Math.max(titleWords.length, 1);
+        if (finalScore > bestScore && finalScore >= 0.5) {
+          bestScore = finalScore;
+          bestMatch = item;
+        }
+      }
+      
+      if (bestMatch) {
+        // Found the folder! Now find the video file inside
+        const filesUrl = "https://graph.microsoft.com/v1.0/me/drive/items/" + bestMatch.id + "/children?$select=name,id,size,@microsoft.graph.downloadUrl";
+        const filesResp = await fetch(filesUrl, { headers: headers });
+        if (!filesResp.ok) continue;
+        
+        const filesData = await filesResp.json();
+        const videoExts = [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".m4v", ".webm"];
+        const subExts = [".srt", ".vtt"];
+        
+        let bestVideo = null;
+        let bestVideoSize = 0;
+        let subtitle = null;
+        
+        for (const file of (filesData.value || [])) {
+          const ext = "." + file.name.split(".").pop().toLowerCase();
+          if (videoExts.includes(ext)) {
+            const size = file.size || 0;
+            if (size > bestVideoSize) {
+              bestVideoSize = size;
+              bestVideo = file;
+            }
+          }
+          if (subExts.includes(ext) && !subtitle) {
+            subtitle = file;
+          }
+        }
+        
+        // Also check subfolders for subs (like "Subs/English.srt")
+        if (!subtitle) {
+          for (const file of (filesData.value || [])) {
+            if (file.folder && file.name.toLowerCase() === "subs") {
+              try {
+                const subsResp = await fetch("https://graph.microsoft.com/v1.0/me/drive/items/" + file.id + "/children?$select=name,id,@microsoft.graph.downloadUrl", { headers: headers });
+                if (subsResp.ok) {
+                  const subsData = await subsResp.json();
+                  for (const sf of (subsData.value || [])) {
+                    const sext = "." + sf.name.split(".").pop().toLowerCase();
+                    if (subExts.includes(sext) || sf.name.toLowerCase().includes("english")) {
+                      subtitle = sf;
+                      break;
+                    }
+                  }
+                }
+              } catch(e) {}
+            }
+          }
+        }
+        
+        if (bestVideo) {
+          // Get fresh download URL
+          const dlResp = await fetch("https://graph.microsoft.com/v1.0/me/drive/items/" + bestVideo.id + "?$select=@microsoft.graph.downloadUrl", { headers: headers });
+          if (dlResp.ok) {
+            const dlData = await dlResp.json();
+            const result = {
+              videoUrl: dlData["@microsoft.graph.downloadUrl"],
+              videoName: bestVideo.name,
+              folderName: bestMatch.name
+            };
+            
+            if (subtitle) {
+              const subResp = await fetch("https://graph.microsoft.com/v1.0/me/drive/items/" + subtitle.id + "?$select=@microsoft.graph.downloadUrl", { headers: headers });
+              if (subResp.ok) {
+                const subData = await subResp.json();
+                result.subtitleUrl = subData["@microsoft.graph.downloadUrl"];
+                result.subtitleName = subtitle.name;
+              }
+            }
+            
+            console.log("OneDrive: Found " + result.videoName + " in " + result.folderName);
+            return result;
+          }
+        }
+      }
+    } catch (e) {
+      console.error("OneDrive search error for folder " + folderPath + ":", e);
+    }
+  }
+  
+  return null;
+}
+
+// Enhanced playMovie with OneDrive streaming fallback
+const _originalPlayMovie = playMovie;
+playMovie = function(id) {
+  const movie = CATALOG.find(function(m) { return m.id === id; });
+  if (!movie) return;
+  
+  // If movie already has a videoUrl (local server), use original player
+  if (movie.videoUrl) {
+    _originalPlayMovie(id);
+    return;
+  }
+  
+  // If MSAL is not configured, show setup message
+  if (!ONEDRIVE_CONFIG.clientId) {
+    _originalPlayMovie(id);
+    return;
+  }
+  
+  // Try OneDrive streaming
+  document.getElementById("playerScreen").classList.add("visible");
+  document.getElementById("playerTitle").textContent = movie.title;
+  document.getElementById("subtitleBtn").style.display = "none";
+  document.getElementById("subtitleBtn").classList.remove("active");
+  
+  const container = document.getElementById("playerVideo");
+  container.innerHTML = '<div class="player-placeholder"><div class="icon" style="animation:spin 1s linear infinite">⏳</div><p>Connecting to OneDrive...</p></div>';
+  
+  // Add spinner animation
+  if (!document.getElementById("spinnerStyle")) {
+    const style = document.createElement("style");
+    style.id = "spinnerStyle";
+    style.textContent = "@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}";
+    document.head.appendChild(style);
+  }
+  
+  let hideTimeout;
+  const header = document.getElementById("playerHeader");
+  function showControls() {
+    header.style.opacity = "1";
+    clearTimeout(hideTimeout);
+    hideTimeout = setTimeout(function(){ header.style.opacity = "0"; }, 3000);
+  }
+  document.getElementById("playerScreen").addEventListener("mousemove", showControls);
+  document.getElementById("playerScreen").addEventListener("touchstart", showControls);
+  showControls();
+  
+  findMovieOnOneDrive(movie).then(function(result) {
+    if (result && result.videoUrl) {
+      const progress = currentUser ? getWatchProgress(currentUser.id, id) : null;
+      const video = document.createElement("video");
+      video.controls = true;
+      video.autoplay = true;
+      video.crossOrigin = "anonymous";
+      video.src = result.videoUrl;
+      video.style.cssText = "width:100%;height:100%;background:#000";
+      if (progress && progress.time > 0) video.currentTime = progress.time;
+      video.addEventListener("loadedmetadata", function() {
+        if (progress && progress.time > 0) video.currentTime = progress.time;
+      });
+      playerInterval = setInterval(function() {
+        if (video.duration && currentUser) {
+          const pct = (video.currentTime / video.duration) * 100;
+          setWatchProgress(currentUser.id, id, video.currentTime, pct);
+        }
+      }, 5000);
+      video.addEventListener("pause", function() {
+        if (video.duration && currentUser) {
+          const pct = (video.currentTime / video.duration) * 100;
+          setWatchProgress(currentUser.id, id, video.currentTime, pct);
+        }
+      });
+      container.innerHTML = "";
+      container.appendChild(video);
+      
+      // Load subtitles from OneDrive
+      if (result.subtitleUrl) {
+        fetch(result.subtitleUrl).then(function(r) { return r.text(); }).then(function(text) {
+          var vttText = text;
+          if (result.subtitleName && result.subtitleName.endsWith(".srt")) {
+            vttText = srtToVtt(text);
+          }
+          var blob = new Blob([vttText], {type: "text/vtt"});
+          var blobUrl = URL.createObjectURL(blob);
+          var track = document.createElement("track");
+          track.kind = "subtitles";
+          track.label = "English";
+          track.srclang = "en";
+          track.src = blobUrl;
+          track.default = true;
+          video.appendChild(track);
+          var subBtn = document.getElementById("subtitleBtn");
+          subBtn.style.display = "inline-block";
+          subBtn.classList.add("active");
+          track.addEventListener("load", function() {
+            if (video.textTracks.length > 0) video.textTracks[0].mode = "showing";
+          });
+        }).catch(function(e) { console.log("Could not load subtitle:", e); });
+      }
+    } else {
+      container.innerHTML = '<div class="player-placeholder">' +
+        '<div class="icon">🎬</div>' +
+        '<p><strong>' + movie.title + '</strong><br><br>' +
+        'Could not find this movie on OneDrive.<br>' +
+        'Make sure the file is synced and try again.</p></div>';
+    }
+  }).catch(function(err) {
+    console.error("OneDrive play error:", err);
+    container.innerHTML = '<div class="player-placeholder">' +
+      '<div class="icon">⚠️</div>' +
+      '<p><strong>Connection Error</strong><br><br>' +
+      err.message + '<br><br>' +
+      'Please sign in to OneDrive and try again.</p></div>';
+  });
+};
+
+// OneDrive sign-in button in nav (shows when configured)
+function showOneDriveStatus() {
+  const indicator = document.getElementById("oneDriveStatus");
+  if (!indicator) return;
+  if (!ONEDRIVE_CONFIG.clientId) {
+    indicator.style.display = "none";
+    return;
+  }
+  indicator.style.display = "inline-block";
+  if (msalAccount) {
+    indicator.textContent = "☁️";
+    indicator.title = "OneDrive: " + msalAccount.username;
+    indicator.style.opacity = "1";
+  } else {
+    indicator.textContent = "☁️";
+    indicator.title = "Click to sign in to OneDrive";
+    indicator.style.opacity = "0.4";
+    indicator.onclick = function() {
+      getOneDriveToken().then(function(token) {
+        if (token) showOneDriveStatus();
+      });
+    };
+  }
+}
+
+// Initialize on load
+if (typeof msal !== "undefined" && ONEDRIVE_CONFIG.clientId) {
+  initMSAL();
+  setTimeout(showOneDriveStatus, 1000);
+}
+
+</script>
+</body>
+</html>
