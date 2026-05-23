@@ -1765,32 +1765,178 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-// ===== TV Remote / D-pad Navigation =====
+
+// ===== NETFLIX-STYLE SPATIAL NAVIGATION FOR TV =====
 (function() {
-  function setupTVNav() {
-    var cards = document.querySelectorAll(".movie-card, .profile-card, button, input, .nav-item, .episode-item, .season-tab");
-    cards.forEach(function(el) {
-      if (!el.getAttribute("tabindex")) el.setAttribute("tabindex", "0");
-    });
+  var isTV = /smart-tv|smarttv|googletv|crkey|aftm|afts|aftt|aftb|fire\s?tv|webos|tizen|roku|android tv/i.test(navigator.userAgent)
+    || window.innerWidth >= 1200;
+  var navMode = "mouse";
+
+  var FOCUSABLE = ".movie-card, .profile-card, .episode-item, .season-tab, button:not([disabled]), input, a[onclick]";
+
+  var tvStyle = document.createElement("style");
+  tvStyle.textContent = [
+    "body.tv-mode { cursor: none !important; }",
+    "body.tv-mode * { cursor: none !important; }",
+    ".tv-focused {",
+    "  outline: 4px solid #e50914 !important;",
+    "  outline-offset: 4px;",
+    "  box-shadow: 0 0 20px rgba(229,9,20,0.5) !important;",
+    "  transform: scale(1.08) !important;",
+    "  z-index: 100 !important;",
+    "  transition: transform 0.15s, outline 0.15s, box-shadow 0.15s !important;",
+    "}",
+    ".movie-card.tv-focused .movie-card-info {",
+    "  background: rgba(229,9,20,0.3) !important;",
+    "}",
+    "@media (min-width: 1200px) {",
+    "  .movie-card { min-width: 220px; }",
+    "  .profile-card { min-width: 200px; min-height: 220px; }",
+    "  #masterPassword { font-size: 28px; padding: 16px 24px; width: 400px; }",
+    "  .pin-input { font-size: 28px; width: 65px; height: 65px; }",
+    "  .row-title { font-size: 1.4rem; }",
+    "  .episode-item { padding: 1.2rem 1.5rem; }",
+    "  .episode-title { font-size: 1.1rem; }",
+    "  .season-tab { padding: 0.8rem 1.5rem; font-size: 1.1rem; }",
+    "  .navbar { padding: 0.8rem 2rem; }",
+    "  .nav-links a { font-size: 1.1rem; }",
+    "}"
+  ].join("\n");
+  document.head.appendChild(tvStyle);
+
+  function getFocusables() {
+    var all = document.querySelectorAll(FOCUSABLE);
+    var visible = [];
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (el.offsetParent !== null && el.offsetWidth > 0 && el.offsetHeight > 0) {
+        var parent = el.closest(".hidden, [style*='display: none'], [style*='display:none']");
+        if (!parent) visible.push(el);
+      }
+    }
+    return visible;
+  }
+
+  function getCenter(el) {
+    var r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, rect: r };
+  }
+
+  function findNearest(current, direction) {
+    var items = getFocusables();
+    var cur = getCenter(current);
+    var best = null;
+    var bestDist = Infinity;
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (item === current) continue;
+      var c = getCenter(item);
+      var dx = c.x - cur.x;
+      var dy = c.y - cur.y;
+      var valid = false;
+      var dist = 0;
+
+      switch (direction) {
+        case "left":
+          if (dx < -10) { valid = true; dist = Math.abs(dx) + Math.abs(dy) * 3; }
+          break;
+        case "right":
+          if (dx > 10) { valid = true; dist = Math.abs(dx) + Math.abs(dy) * 3; }
+          break;
+        case "up":
+          if (dy < -10) { valid = true; dist = Math.abs(dy) + Math.abs(dx) * 0.5; }
+          break;
+        case "down":
+          if (dy > 10) { valid = true; dist = Math.abs(dy) + Math.abs(dx) * 0.5; }
+          break;
+      }
+
+      if (valid && dist < bestDist) {
+        bestDist = dist;
+        best = item;
+      }
+    }
+    return best;
+  }
+
+  var currentFocused = null;
+  function setTVFocus(el) {
+    if (currentFocused) currentFocused.classList.remove("tv-focused");
+    currentFocused = el;
+    if (el) {
+      el.classList.add("tv-focused");
+      el.focus({ preventScroll: true });
+      el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+      var rowScroll = el.closest(".row-scroll");
+      if (rowScroll) {
+        var elRect = el.getBoundingClientRect();
+        var rowRect = rowScroll.getBoundingClientRect();
+        if (elRect.right > rowRect.right - 50) {
+          rowScroll.scrollLeft += elRect.right - rowRect.right + 200;
+        } else if (elRect.left < rowRect.left + 50) {
+          rowScroll.scrollLeft -= rowRect.left - elRect.left + 200;
+        }
+      }
+    }
+  }
+
+  function focusFirst() {
+    var items = getFocusables();
+    if (items.length > 0) setTVFocus(items[0]);
+  }
+
+  function enterDpadMode() {
+    if (navMode === "dpad") return;
+    navMode = "dpad";
+    document.body.classList.add("tv-mode");
+    if (!currentFocused) focusFirst();
+  }
+
+  function enterMouseMode() {
+    if (navMode === "mouse") return;
+    navMode = "mouse";
+    document.body.classList.remove("tv-mode");
+    if (currentFocused) currentFocused.classList.remove("tv-focused");
+    currentFocused = null;
   }
 
   document.addEventListener("keydown", function(e) {
-    if (e.key === "Enter" && document.activeElement) {
-      var el = document.activeElement;
-      if (el.classList.contains("movie-card") || el.classList.contains("profile-card") || el.classList.contains("episode-item")) {
-        el.click();
+    var key = e.key;
+
+    if (key === "ArrowLeft" || key === "ArrowRight" || key === "ArrowUp" || key === "ArrowDown") {
+      enterDpadMode();
+      if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+
+      var dir = key.replace("Arrow", "").toLowerCase();
+      if (!currentFocused) {
+        focusFirst();
+      } else {
+        var next = findNearest(currentFocused, dir);
+        if (next) setTVFocus(next);
+      }
+      e.preventDefault();
+      return;
+    }
+
+    if (key === "Enter") {
+      if (navMode === "dpad" && currentFocused) {
+        if (currentFocused.tagName === "INPUT") return;
+        currentFocused.click();
         e.preventDefault();
+        return;
       }
     }
-    if (e.key === "Escape" || e.key === "GoBack" || e.keyCode === 10009) {
+
+    if (key === "Escape" || key === "GoBack" || e.keyCode === 10009) {
       var player = document.getElementById("playerScreen");
       if (player && player.classList.contains("visible")) {
         closePlayer();
         e.preventDefault();
         return;
       }
-      var seriesBrowser = document.getElementById("seriesBrowser");
-      if (seriesBrowser && !seriesBrowser.classList.contains("hidden")) {
+      var sb = document.getElementById("seriesBrowser");
+      if (sb && !sb.classList.contains("hidden")) {
         closeSeriesBrowser();
         e.preventDefault();
         return;
@@ -1798,80 +1944,25 @@ if ("serviceWorker" in navigator) {
     }
   });
 
-  var tvStyle = document.createElement("style");
-  tvStyle.textContent =
-    ".movie-card:focus, .profile-card:focus, button:focus, .nav-item:focus, .episode-item:focus, .season-tab:focus {" +
-    "  outline: 3px solid #e50914 !important; outline-offset: 4px; transform: scale(1.05); z-index: 10;" +
-    "}" +
-    "@media (min-width: 1200px) {" +
-    "  .movie-card { min-width: 200px; } .profile-card { min-width: 180px; min-height: 200px; }" +
-    "  #masterPassword { font-size: 28px; padding: 16px 24px; }" +
-    "  .pin-input { font-size: 28px; width: 60px; height: 60px; }" +
-    "}";
-  document.head.appendChild(tvStyle);
-
-  var observer = new MutationObserver(function() { setupTVNav(); });
-  observer.observe(document.body, { childList: true, subtree: true });
-  setupTVNav();
-})();
-
-// ===== TV Remote / D-pad Navigation =====
-(function() {
-  // Make all movie cards, buttons, and inputs focusable
-  function setupTVNav() {
-    var cards = document.querySelectorAll(".movie-card, .profile-card, button, input, .nav-item");
-    cards.forEach(function(el) {
-      if (!el.getAttribute("tabindex")) el.setAttribute("tabindex", "0");
-    });
-  }
-
-  // Handle Enter key on focused elements (simulates click)
-  document.addEventListener("keydown", function(e) {
-    // Enter/OK button on remote
-    if (e.key === "Enter" && document.activeElement) {
-      var el = document.activeElement;
-      if (el.classList.contains("movie-card") || el.classList.contains("profile-card")) {
-        el.click();
-        e.preventDefault();
-      }
-    }
-    // Back button on remote (go back / close player)
-    if (e.key === "Escape" || e.key === "GoBack" || e.keyCode === 10009) {
-      var player = document.getElementById("playerScreen");
-      if (player && player.classList.contains("visible")) {
-        closePlayer();
-        e.preventDefault();
-      } else {
-        var detail = document.getElementById("movieDetail");
-        if (detail && detail.classList.contains("visible")) {
-          closeDetail();
-          e.preventDefault();
-        }
-      }
-    }
+  var mouseTimer;
+  document.addEventListener("mousemove", function() {
+    clearTimeout(mouseTimer);
+    mouseTimer = setTimeout(enterMouseMode, 100);
   });
 
-  // Add focus styling for TV
-  var tvStyle = document.createElement("style");
-  tvStyle.textContent =
-    ".movie-card:focus, .profile-card:focus, button:focus, .nav-item:focus {" +
-    "  outline: 3px solid #e50914 !important;" +
-    "  outline-offset: 4px;" +
-    "  transform: scale(1.05);" +
-    "  z-index: 10;" +
-    "}" +
-    "@media (min-width: 1200px) {" +
-    "  .movie-card { min-width: 200px; }" +
-    "  .profile-card { min-width: 180px; min-height: 200px; }" +
-    "  #masterPassword { font-size: 28px; padding: 16px 24px; }" +
-    "  .pin-input { font-size: 28px; width: 60px; height: 60px; }" +
-    "}";
-  document.head.appendChild(tvStyle);
+  if (isTV) {
+    setTimeout(function() {
+      enterDpadMode();
+      focusFirst();
+    }, 1500);
+  }
 
-  // Re-run setup when DOM changes (new content loaded)
-  var observer = new MutationObserver(function() { setupTVNav(); });
+  var observer = new MutationObserver(function() {
+    if (navMode === "dpad" && (!currentFocused || !document.body.contains(currentFocused))) {
+      setTimeout(focusFirst, 200);
+    }
+  });
   observer.observe(document.body, { childList: true, subtree: true });
-  setupTVNav();
 })();
 
 </script>
