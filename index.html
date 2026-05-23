@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Bilal Flix</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#e50914">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -1403,6 +1410,74 @@ if (typeof msal !== "undefined" && ONEDRIVE_CONFIG.clientId) {
   initMSAL();
   setTimeout(showOneDriveStatus, 1000);
 }
+
+// ===== PWA Service Worker =====
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").then(function(reg) {
+    console.log("SW registered:", reg.scope);
+  }).catch(function(err) {
+    console.log("SW registration failed:", err);
+  });
+}
+
+// ===== TV Remote / D-pad Navigation =====
+(function() {
+  // Make all movie cards, buttons, and inputs focusable
+  function setupTVNav() {
+    var cards = document.querySelectorAll(".movie-card, .profile-card, button, input, .nav-item");
+    cards.forEach(function(el) {
+      if (!el.getAttribute("tabindex")) el.setAttribute("tabindex", "0");
+    });
+  }
+
+  // Handle Enter key on focused elements (simulates click)
+  document.addEventListener("keydown", function(e) {
+    // Enter/OK button on remote
+    if (e.key === "Enter" && document.activeElement) {
+      var el = document.activeElement;
+      if (el.classList.contains("movie-card") || el.classList.contains("profile-card")) {
+        el.click();
+        e.preventDefault();
+      }
+    }
+    // Back button on remote (go back / close player)
+    if (e.key === "Escape" || e.key === "GoBack" || e.keyCode === 10009) {
+      var player = document.getElementById("playerScreen");
+      if (player && player.classList.contains("visible")) {
+        closePlayer();
+        e.preventDefault();
+      } else {
+        var detail = document.getElementById("movieDetail");
+        if (detail && detail.classList.contains("visible")) {
+          closeDetail();
+          e.preventDefault();
+        }
+      }
+    }
+  });
+
+  // Add focus styling for TV
+  var tvStyle = document.createElement("style");
+  tvStyle.textContent =
+    ".movie-card:focus, .profile-card:focus, button:focus, .nav-item:focus {" +
+    "  outline: 3px solid #e50914 !important;" +
+    "  outline-offset: 4px;" +
+    "  transform: scale(1.05);" +
+    "  z-index: 10;" +
+    "}" +
+    "@media (min-width: 1200px) {" +
+    "  .movie-card { min-width: 200px; }" +
+    "  .profile-card { min-width: 180px; min-height: 200px; }" +
+    "  #masterPassword { font-size: 28px; padding: 16px 24px; }" +
+    "  .pin-input { font-size: 28px; width: 60px; height: 60px; }" +
+    "}";
+  document.head.appendChild(tvStyle);
+
+  // Re-run setup when DOM changes (new content loaded)
+  var observer = new MutationObserver(function() { setupTVNav(); });
+  observer.observe(document.body, { childList: true, subtree: true });
+  setupTVNav();
+})();
 
 </script>
 </body>
