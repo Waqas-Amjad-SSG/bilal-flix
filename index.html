@@ -1117,39 +1117,58 @@ async function findMovieOnOneDrive(movie) {
 
         const folderWords = folderName.split(/\s+/).filter(function(w) { return w.length > 0; });
 
-        // --- Scoring: multiple strategies ---
+        // --- Scoring: precise matching ---
         var score = 0;
 
-        // Strategy 1: exact title appears in folder name (or vice versa)
-        if (rawName.includes(titleLower) || folderName.includes(titleLower)) {
+        // Strategy 1: folder name STARTS with the exact title (best match)
+        // e.g. title "F1" matches folder "f1 the movie 2025..."
+        if (folderName === titleLower || folderName.indexOf(titleLower + " ") === 0) {
           score = Math.max(score, 1.0);
         }
-        if (titleLower.includes(folderName) && folderName.length >= 2) {
-          score = Math.max(score, 0.9);
+        // Title appears as whole word(s) in folder name
+        else if (folderName.indexOf(titleLower) >= 0) {
+          // Check it's a word boundary match, not substring of another word
+          var pos = folderName.indexOf(titleLower);
+          var before = pos === 0 || folderName[pos - 1] === " ";
+          var after = (pos + titleLower.length) >= folderName.length || folderName[pos + titleLower.length] === " ";
+          if (before && after) {
+            score = Math.max(score, 0.95);
+          } else {
+            score = Math.max(score, 0.6);
+          }
         }
 
-        // Strategy 2: word overlap
-        var overlap = 0;
+        // Strategy 2: exact word matches only (no substring matching)
+        var exactOverlap = 0;
         for (var wi = 0; wi < titleWords.length; wi++) {
           var tw = titleWords[wi];
           for (var fi = 0; fi < folderWords.length; fi++) {
-            if (folderWords[fi] === tw || folderWords[fi].indexOf(tw) >= 0 || tw.indexOf(folderWords[fi]) >= 0) {
-              overlap++;
+            if (folderWords[fi] === tw) {
+              exactOverlap++;
               break;
             }
           }
         }
-        var overlapScore = overlap / Math.max(titleWords.length, 1);
-        score = Math.max(score, overlapScore);
+        var exactScore = exactOverlap / Math.max(titleWords.length, 1);
+        score = Math.max(score, exactScore);
 
-        // Strategy 3: for very short titles (1-2 words), check if first word of folder matches
-        if (titleWords.length <= 2 && folderWords.length > 0) {
-          if (folderWords[0] === titleWords[0]) {
-            score = Math.max(score, 0.8);
+        // Strategy 3: for multi-word titles, allow partial word matching but require min 3 chars
+        if (titleWords.length >= 2) {
+          var partialOverlap = 0;
+          for (var wi2 = 0; wi2 < titleWords.length; wi2++) {
+            var tw2 = titleWords[wi2];
+            if (tw2.length < 3) continue; // skip short words for partial matching
+            for (var fi2 = 0; fi2 < folderWords.length; fi2++) {
+              if (folderWords[fi2].indexOf(tw2) >= 0 || tw2.indexOf(folderWords[fi2]) >= 0) {
+                if (folderWords[fi2].length >= 3) { partialOverlap++; break; }
+              }
+            }
           }
+          var partialScore = partialOverlap / Math.max(titleWords.length, 1);
+          score = Math.max(score, partialScore * 0.85);
         }
 
-        if (score > bestScore && score >= 0.4) {
+        if (score > bestScore && score >= 0.5) {
           bestScore = score;
           bestMatch = item;
           console.log("[OneDrive] Match candidate:", item.name, "score:", score.toFixed(2));
