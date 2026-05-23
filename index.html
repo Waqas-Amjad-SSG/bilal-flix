@@ -975,6 +975,7 @@ const ONEDRIVE_CONFIG = {
   // OneDrive folder paths (relative to drive root)
   movieFolders: {
     watched: "Seasons & Movies 2/Movies/00 - Watched",
+    toWatch: "Seasons & Movies 2/Movies/01 - TO Watch",
     mano2: "Seasons & Movies 2/Movies for mano 2",
     season: "Seasons & Movies 2/Season"
   }
@@ -1064,67 +1065,99 @@ async function getOneDriveToken() {
 // Search OneDrive for a movie file by title
 async function findMovieOnOneDrive(movie) {
   const token = await getOneDriveToken();
-  if (!token) return null;
-  
+  if (!token) { console.log("[OneDrive] No token"); return null; }
+
   const headers = { "Authorization": "Bearer " + token };
-  
-  // Build search queries from the movie title
+
+  // Clean movie title for matching
   const cleanTitle = movie.title.replace(/[:']/g, "").replace(/\s+/g, " ").trim();
-  
+  const titleLower = cleanTitle.toLowerCase();
+  const titleWords = titleLower.split(" ").filter(function(w) { return w.length > 0; });
+
+  console.log("[OneDrive] Searching for:", cleanTitle, "| words:", titleWords);
+
   // Try each movie folder
   const folders = Object.values(ONEDRIVE_CONFIG.movieFolders);
-  
+
   for (const folderPath of folders) {
     try {
-      // List children of the folder
-      const encodedPath = encodeURIComponent(folderPath).replace(/%2F/g, "/");
+      // Encode path segments individually to handle spaces correctly
+      const pathSegments = folderPath.split("/");
+      const encodedPath = pathSegments.map(function(s) { return encodeURIComponent(s); }).join("/");
       const listUrl = "https://graph.microsoft.com/v1.0/me/drive/root:/" + encodedPath + ":/children?$top=200&$select=name,id,folder";
-      
+
+      console.log("[OneDrive] Listing folder:", folderPath);
       const resp = await fetch(listUrl, { headers: headers });
-      if (!resp.ok) continue;
-      
+      if (!resp.ok) {
+        console.log("[OneDrive] Folder error:", resp.status, resp.statusText, "for", folderPath);
+        continue;
+      }
+
       const data = await resp.json();
       const items = data.value || [];
-      
-      // Find matching folder by name
-      const titleLower = cleanTitle.toLowerCase();
-      const titleWords = titleLower.split(" ");
-      
+      console.log("[OneDrive] Found", items.length, "items in", folderPath);
+
       let bestMatch = null;
       let bestScore = 0;
-      
+
       for (const item of items) {
         if (!item.folder) continue;
-        const folderName = item.name.toLowerCase()
-          .replace(/[._\[\]()]/g, " ")
+
+        // Clean folder name — strip resolution, codec, release group tags
+        const rawName = item.name.toLowerCase();
+        const folderName = rawName
+          .replace(/[._\[\](){}]/g, " ")
           .replace(/\b(720|1080|2160|480)p\b.*/i, "")
-          .replace(/\b(bluray|brrip|webrip|web-dl|hdrip|dvdrip|hdtv)\b.*/i, "")
-          .replace(/\b(x264|x265|hevc|aac|ac3|dts)\b.*/i, "")
-          .replace(/\b(yify|yts|rarbg|evo)\b.*/i, "")
+          .replace(/\b(bluray|brrip|webrip|web-dl|web dl|hdrip|dvdrip|hdtv)\b.*/i, "")
+          .replace(/\b(x264|x265|hevc|aac|ac3|dts|10bit|5 1)\b.*/i, "")
+          .replace(/\b(yify|yts|rarbg|evo|mx)\b.*/i, "")
           .replace(/\s+\d{4}\s*$/, "")
+          .replace(/\s+/g, " ")
           .trim();
-        
-        // Score by word overlap
-        const folderWords = folderName.split(/\s+/);
-        let overlap = 0;
-        for (const w of titleWords) {
-          if (folderWords.some(function(fw) { return fw.includes(w) || w.includes(fw); })) overlap++;
+
+        const folderWords = folderName.split(/\s+/).filter(function(w) { return w.length > 0; });
+
+        // --- Scoring: multiple strategies ---
+        var score = 0;
+
+        // Strategy 1: exact title appears in folder name (or vice versa)
+        if (rawName.includes(titleLower) || folderName.includes(titleLower)) {
+          score = Math.max(score, 1.0);
         }
-        const score = overlap / Math.max(titleWords.length, 1);
-        
-        // Boost exact containment
-        if (folderName.includes(titleLower) || titleLower.includes(folderName)) {
-          if (score < 0.9) overlap = Math.max(overlap, titleWords.length - 1);
+        if (titleLower.includes(folderName) && folderName.length >= 2) {
+          score = Math.max(score, 0.9);
         }
-        
-        const finalScore = overlap / Math.max(titleWords.length, 1);
-        if (finalScore > bestScore && finalScore >= 0.5) {
-          bestScore = finalScore;
+
+        // Strategy 2: word overlap
+        var overlap = 0;
+        for (var wi = 0; wi < titleWords.length; wi++) {
+          var tw = titleWords[wi];
+          for (var fi = 0; fi < folderWords.length; fi++) {
+            if (folderWords[fi] === tw || folderWords[fi].indexOf(tw) >= 0 || tw.indexOf(folderWords[fi]) >= 0) {
+              overlap++;
+              break;
+            }
+          }
+        }
+        var overlapScore = overlap / Math.max(titleWords.length, 1);
+        score = Math.max(score, overlapScore);
+
+        // Strategy 3: for very short titles (1-2 words), check if first word of folder matches
+        if (titleWords.length <= 2 && folderWords.length > 0) {
+          if (folderWords[0] === titleWords[0]) {
+            score = Math.max(score, 0.8);
+          }
+        }
+
+        if (score > bestScore && score >= 0.4) {
+          bestScore = score;
           bestMatch = item;
+          console.log("[OneDrive] Match candidate:", item.name, "score:", score.toFixed(2));
         }
       }
-      
+
       if (bestMatch) {
+        console.log("[OneDrive] Best match:", bestMatch.name, "score:", bestScore.toFixed(2));
         // Found the folder! Now find the video file inside
         const filesUrl = "https://graph.microsoft.com/v1.0/me/drive/items/" + bestMatch.id + "/children?$select=name,id,size,@microsoft.graph.downloadUrl";
         const filesResp = await fetch(filesUrl, { headers: headers });
