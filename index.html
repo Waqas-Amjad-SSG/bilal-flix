@@ -288,6 +288,43 @@ body {
   color: #fff; padding: 0.3rem 0.7rem; border-radius: 4px; font-size: 0.8rem;
   cursor: pointer; margin-left: auto; transition: all 0.2s;
 }
+/* SERIES BROWSER */
+.series-browser {
+  position: fixed; inset: 0; z-index: 700; background: #141414;
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+.series-browser.hidden { display: none; }
+.series-header {
+  padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem;
+  background: rgba(0,0,0,0.9); position: sticky; top: 0; z-index: 10;
+}
+.series-title { font-size: 1.3rem; font-weight: 700; }
+.series-content { padding: 1rem 1.5rem; flex: 1; }
+.series-loading { text-align: center; color: #666; padding: 3rem; font-size: 1.1rem; }
+.season-tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.season-tab {
+  background: rgba(255,255,255,0.1); border: 2px solid transparent;
+  color: #fff; padding: 0.6rem 1.2rem; border-radius: 6px; font-size: 0.95rem;
+  cursor: pointer; transition: all 0.2s; font-weight: 500;
+}
+.season-tab:hover, .season-tab:focus { background: rgba(255,255,255,0.2); }
+.season-tab.active { border-color: #e50914; background: rgba(229,9,20,0.2); }
+.episode-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.episode-item {
+  display: flex; align-items: center; gap: 1rem; padding: 0.8rem 1rem;
+  background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer;
+  transition: background 0.2s; border: 1px solid transparent;
+}
+.episode-item:hover, .episode-item:focus {
+  background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.1);
+}
+.episode-num { font-size: 1.3rem; font-weight: 700; color: #666; min-width: 2.5rem; text-align: center; }
+.episode-info { flex: 1; }
+.episode-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.2rem; }
+.episode-meta { font-size: 0.8rem; color: #888; }
+.episode-play { color: #e50914; font-size: 1.5rem; }
+.episode-progress { height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-top: 0.4rem; }
+.episode-progress-fill { height: 100%; background: #e50914; border-radius: 2px; }
 .subtitle-btn:hover { background: rgba(255,255,255,0.3); }
 .subtitle-btn.active { background: #e50914; border-color: #e50914; }
 video::cue {
@@ -376,6 +413,17 @@ video::cue {
     <div class="error" id="profileError"></div>
     <button onclick="checkProfilePassword()">Continue</button>
     <button class="password-back" onclick="closePasswordModal()">Back</button>
+  </div>
+</div>
+
+<!-- ===== SERIES BROWSER ===== -->
+<div class="series-browser hidden" id="seriesBrowser">
+  <div class="series-header">
+    <button class="player-back" onclick="closeSeriesBrowser()">\u2190</button>
+    <span class="series-title" id="seriesTitle"></span>
+  </div>
+  <div class="series-content" id="seriesContent">
+    <div class="series-loading">Loading seasons...</div>
   </div>
 </div>
 
@@ -983,6 +1031,7 @@ const ONEDRIVE_CONFIG = {
   movieFolders: {
     watched: "Seasons & Movies 2/Movies/00 - Watched",
     toWatch: "Seasons & Movies 2/Movies/01 - TO Watch",
+    toWatch: "Seasons & Movies 2/Movies/01 - TO Watch",
     mano2: "Seasons & Movies 2/Movies for mano 2",
     season: "Seasons & Movies 2/Season"
   }
@@ -1338,6 +1387,7 @@ playMovie = function(id) {
   
   findMovieOnOneDrive(movie).then(function(result) {
     sessionStorage.removeItem("flix_pending_movie");
+    sessionStorage.removeItem("flix_pending_movie");
     if (result && result.videoUrl) {
       const progress = currentUser ? getWatchProgress(currentUser.id, id) : null;
       const video = document.createElement("video");
@@ -1437,6 +1487,275 @@ if (typeof msal !== "undefined" && ONEDRIVE_CONFIG.clientId) {
   setTimeout(showOneDriveStatus, 1000);
 }
 
+
+// ===== SERIES BROWSER =====
+var SERIES_FOLDER_MAP = {
+  "lost": { searchName: "lost", parentFolder: "Seasons & Movies 2/Season" },
+  "malcolm_in_the_middle": { searchName: "malcolm", parentFolder: "Seasons & Movies 2/Season", multiFolder: true },
+  "married_with_children": { searchName: "married", parentFolder: "Seasons & Movies 2/Season" },
+  "friends": { searchName: "friends", parentFolder: "Seasons & Movies 2/Season" },
+  "person_of_interest": { searchName: "person of interest", parentFolder: "Seasons & Movies 2/Season" },
+  "succession": { searchName: "succession", parentFolder: "Seasons & Movies 2/Season" }
+};
+
+function closeSeriesBrowser() {
+  document.getElementById("seriesBrowser").classList.add("hidden");
+}
+
+async function browseSeries(seriesId) {
+  var movie = CATALOG.find(function(m) { return m.id === seriesId; });
+  if (!movie) return;
+
+  var browser = document.getElementById("seriesBrowser");
+  var content = document.getElementById("seriesContent");
+  document.getElementById("seriesTitle").textContent = movie.title;
+  content.innerHTML = '<div class="series-loading">Loading seasons...</div>';
+  browser.classList.remove("hidden");
+
+  var token = await getOneDriveToken();
+  if (!token) {
+    content.innerHTML = '<div class="series-loading">Please sign in to OneDrive to browse episodes.</div>';
+    return;
+  }
+
+  var headers = { "Authorization": "Bearer " + token };
+  var config = SERIES_FOLDER_MAP[seriesId];
+  if (!config) {
+    content.innerHTML = '<div class="series-loading">Series not configured for streaming.</div>';
+    return;
+  }
+
+  try {
+    var seasons = [];
+
+    if (config.multiFolder) {
+      var pathSegs = config.parentFolder.split("/").map(function(s) { return encodeURIComponent(s); }).join("/");
+      var listUrl = "https://graph.microsoft.com/v1.0/me/drive/root:/" + pathSegs + ":/children?$top=200&$select=name,id,folder";
+      var resp = await fetch(listUrl, { headers: headers });
+      if (!resp.ok) throw new Error("Could not list folder");
+      var data = await resp.json();
+      var items = data.value || [];
+
+      var searchLower = config.searchName.toLowerCase();
+      var matched = items.filter(function(item) {
+        return item.folder && item.name.toLowerCase().indexOf(searchLower) >= 0;
+      }).sort(function(a, b) { return a.name.localeCompare(b.name); });
+
+      for (var i = 0; i < matched.length; i++) {
+        var sMatch = matched[i].name.match(/s(\d+)/i);
+        var sNum = sMatch ? parseInt(sMatch[1]) : (i + 1);
+        seasons.push({ num: sNum, name: "Season " + sNum, folderId: matched[i].id, folderName: matched[i].name });
+      }
+    } else {
+      var pathSegs2 = config.parentFolder.split("/").map(function(s) { return encodeURIComponent(s); }).join("/");
+      var listUrl2 = "https://graph.microsoft.com/v1.0/me/drive/root:/" + pathSegs2 + ":/children?$top=200&$select=name,id,folder";
+      var resp2 = await fetch(listUrl2, { headers: headers });
+      if (!resp2.ok) throw new Error("Could not list folder");
+      var data2 = await resp2.json();
+      var items2 = data2.value || [];
+
+      var searchLower2 = config.searchName.toLowerCase();
+      var seriesFolder = items2.find(function(item) {
+        return item.folder && item.name.toLowerCase().indexOf(searchLower2) >= 0;
+      });
+
+      if (!seriesFolder) throw new Error("Series folder not found on OneDrive");
+
+      var subUrl = "https://graph.microsoft.com/v1.0/me/drive/items/" + seriesFolder.id + "/children?$top=200&$select=name,id,folder";
+      var subResp = await fetch(subUrl, { headers: headers });
+      if (!subResp.ok) throw new Error("Could not list seasons");
+      var subData = await subResp.json();
+      var subItems = subData.value || [];
+
+      var seasonFolders = subItems.filter(function(item) {
+        return item.folder && /season|s\d/i.test(item.name);
+      }).sort(function(a, b) {
+        var aNum = a.name.match(/(\d+)/);
+        var bNum = b.name.match(/(\d+)/);
+        return (aNum ? parseInt(aNum[1]) : 0) - (bNum ? parseInt(bNum[1]) : 0);
+      });
+
+      if (seasonFolders.length === 0) {
+        seasons.push({ num: 1, name: "Season 1", folderId: seriesFolder.id, folderName: seriesFolder.name });
+      } else {
+        for (var j = 0; j < seasonFolders.length; j++) {
+          var sMatch2 = seasonFolders[j].name.match(/(\d+)/);
+          var sNum2 = sMatch2 ? parseInt(sMatch2[1]) : (j + 1);
+          seasons.push({ num: sNum2, name: "Season " + sNum2, folderId: seasonFolders[j].id, folderName: seasonFolders[j].name });
+        }
+      }
+    }
+
+    if (seasons.length === 0) {
+      content.innerHTML = '<div class="series-loading">No seasons found on OneDrive.</div>';
+      return;
+    }
+
+    var tabsHtml = '<div class="season-tabs">';
+    for (var k = 0; k < seasons.length; k++) {
+      tabsHtml += '<button class="season-tab' + (k === 0 ? ' active' : '') + '" ' +
+        'onclick="loadEpisodes(\'' + seriesId + '\',' + k + ',\'' + seasons[k].folderId + '\')" ' +
+        'data-season-idx="' + k + '">' + seasons[k].name + '</button>';
+    }
+    tabsHtml += '</div>';
+    content.innerHTML = tabsHtml + '<div class="episode-list" id="episodeList"><div class="series-loading">Loading episodes...</div></div>';
+
+    window._seriesSeasons = seasons;
+    loadEpisodes(seriesId, 0, seasons[0].folderId);
+
+  } catch (err) {
+    console.error("Series browse error:", err);
+    content.innerHTML = '<div class="series-loading">Error: ' + err.message + '</div>';
+  }
+}
+
+async function loadEpisodes(seriesId, seasonIdx, folderId) {
+  var tabs = document.querySelectorAll(".season-tab");
+  tabs.forEach(function(t) { t.classList.remove("active"); });
+  var activeTab = document.querySelector('.season-tab[data-season-idx="' + seasonIdx + '"]');
+  if (activeTab) activeTab.classList.add("active");
+
+  var episodeList = document.getElementById("episodeList");
+  episodeList.innerHTML = '<div class="series-loading">Loading episodes...</div>';
+
+  var token = await getOneDriveToken();
+  if (!token) return;
+
+  var headers = { "Authorization": "Bearer " + token };
+  var videoExts = [".mp4", ".mkv", ".avi", ".mov", ".wmv", ".m4v", ".webm"];
+
+  try {
+    var url = "https://graph.microsoft.com/v1.0/me/drive/items/" + folderId + "/children?$top=200&$select=name,id,size,@microsoft.graph.downloadUrl";
+    var resp = await fetch(url, { headers: headers });
+    if (!resp.ok) throw new Error("Could not load episodes");
+    var data = await resp.json();
+    var items = data.value || [];
+
+    var episodes = items.filter(function(item) {
+      var ext = "." + item.name.split(".").pop().toLowerCase();
+      return videoExts.indexOf(ext) >= 0;
+    }).sort(function(a, b) {
+      var aMatch = a.name.match(/[Ee](\d+)/);
+      var bMatch = b.name.match(/[Ee](\d+)/);
+      var aNum = aMatch ? parseInt(aMatch[1]) : 0;
+      var bNum = bMatch ? parseInt(bMatch[1]) : 0;
+      return aNum - bNum || a.name.localeCompare(b.name);
+    });
+
+    if (episodes.length === 0) {
+      episodeList.innerHTML = '<div class="series-loading">No episodes found in this season.</div>';
+      return;
+    }
+
+    var html = "";
+    var seasonNum = window._seriesSeasons[seasonIdx] ? window._seriesSeasons[seasonIdx].num : 1;
+
+    for (var i = 0; i < episodes.length; i++) {
+      var ep = episodes[i];
+      var epMatch = ep.name.match(/[Ee](\d+)/);
+      var epNum = epMatch ? parseInt(epMatch[1]) : (i + 1);
+
+      var epName = ep.name
+        .replace(/\.[^.]+$/, "")
+        .replace(/[._]/g, " ")
+        .replace(/\b(720|1080|2160|480)p\b.*/i, "")
+        .replace(/\b(bluray|brrip|webrip|web-dl|x264|x265|hevc|aac|ac3)\b.*/i, "")
+        .replace(/s\d+e\d+/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!epName || epName.length < 3) epName = "Episode " + epNum;
+
+      var epId = seriesId + "_s" + seasonNum + "e" + epNum;
+      var progress = currentUser ? getWatchProgress(currentUser.id, epId) : null;
+      var progressHtml = (progress && progress.percent > 0) ?
+        '<div class="episode-progress"><div class="episode-progress-fill" style="width:' + progress.percent + '%"></div></div>' : '';
+
+      var sizeMB = ep.size ? Math.round(ep.size / 1048576) : 0;
+      var downloadUrl = ep["@microsoft.graph.downloadUrl"] || "";
+
+      html += '<div class="episode-item" tabindex="0" onclick="playEpisode(\'' + seriesId + '\',' + seasonNum + ',' + epNum + ',\'' + btoa(downloadUrl) + '\',\'' + ep.name.replace(/'/g, "\\'") + '\')">' +
+        '<div class="episode-num">' + epNum + '</div>' +
+        '<div class="episode-info">' +
+          '<div class="episode-title">' + epName + '</div>' +
+          '<div class="episode-meta">S' + seasonNum + ' E' + epNum + (sizeMB > 0 ? ' \u00b7 ' + sizeMB + ' MB' : '') + '</div>' +
+          progressHtml +
+        '</div>' +
+        '<div class="episode-play">\u25b6</div>' +
+      '</div>';
+    }
+
+    episodeList.innerHTML = html;
+  } catch (err) {
+    console.error("Load episodes error:", err);
+    episodeList.innerHTML = '<div class="series-loading">Error: ' + err.message + '</div>';
+  }
+}
+
+function playEpisode(seriesId, seasonNum, epNum, downloadUrlB64, fileName) {
+  var movie = CATALOG.find(function(m) { return m.id === seriesId; });
+  if (!movie) return;
+
+  var downloadUrl = atob(downloadUrlB64);
+  var epId = seriesId + "_s" + seasonNum + "e" + epNum;
+
+  document.getElementById("seriesBrowser").classList.add("hidden");
+  document.getElementById("playerScreen").classList.add("visible");
+  document.getElementById("playerTitle").textContent = movie.title + " \u00b7 S" + seasonNum + " E" + epNum;
+  document.getElementById("subtitleBtn").style.display = "none";
+
+  var container = document.getElementById("playerVideo");
+  var progress = currentUser ? getWatchProgress(currentUser.id, epId) : null;
+
+  var video = document.createElement("video");
+  video.controls = true;
+  video.autoplay = true;
+  video.src = downloadUrl;
+  video.style.cssText = "width:100%;height:100%;background:#000";
+  if (progress && progress.time > 0) video.currentTime = progress.time;
+
+  video.addEventListener("loadedmetadata", function() {
+    if (progress && progress.time > 0) video.currentTime = progress.time;
+  });
+
+  if (playerInterval) clearInterval(playerInterval);
+  playerInterval = setInterval(function() {
+    if (video.duration && currentUser) {
+      var pct = (video.currentTime / video.duration) * 100;
+      setWatchProgress(currentUser.id, epId, video.currentTime, pct);
+    }
+  }, 5000);
+  video.addEventListener("pause", function() {
+    if (video.duration && currentUser) {
+      var pct = (video.currentTime / video.duration) * 100;
+      setWatchProgress(currentUser.id, epId, video.currentTime, pct);
+    }
+  });
+
+  container.innerHTML = "";
+  container.appendChild(video);
+
+  var header = document.getElementById("playerHeader");
+  function showControls() {
+    header.style.opacity = "1";
+    clearTimeout(video._hideTimer);
+    video._hideTimer = setTimeout(function() { header.style.opacity = "0"; }, 4000);
+  }
+  document.getElementById("playerScreen").addEventListener("mousemove", showControls);
+  document.getElementById("playerScreen").addEventListener("touchstart", showControls);
+  showControls();
+}
+
+// Override playMovie to detect series and open browser instead
+var _basePlayMovie = playMovie;
+playMovie = function(id) {
+  var movie = CATALOG.find(function(m) { return m.id === id; });
+  if (movie && movie.category === "series" && SERIES_FOLDER_MAP[id]) {
+    browseSeries(id);
+    return;
+  }
+  _basePlayMovie(id);
+};
+
 // ===== PWA Service Worker =====
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").then(function(reg) {
@@ -1445,6 +1764,56 @@ if ("serviceWorker" in navigator) {
     console.log("SW registration failed:", err);
   });
 }
+
+// ===== TV Remote / D-pad Navigation =====
+(function() {
+  function setupTVNav() {
+    var cards = document.querySelectorAll(".movie-card, .profile-card, button, input, .nav-item, .episode-item, .season-tab");
+    cards.forEach(function(el) {
+      if (!el.getAttribute("tabindex")) el.setAttribute("tabindex", "0");
+    });
+  }
+
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Enter" && document.activeElement) {
+      var el = document.activeElement;
+      if (el.classList.contains("movie-card") || el.classList.contains("profile-card") || el.classList.contains("episode-item")) {
+        el.click();
+        e.preventDefault();
+      }
+    }
+    if (e.key === "Escape" || e.key === "GoBack" || e.keyCode === 10009) {
+      var player = document.getElementById("playerScreen");
+      if (player && player.classList.contains("visible")) {
+        closePlayer();
+        e.preventDefault();
+        return;
+      }
+      var seriesBrowser = document.getElementById("seriesBrowser");
+      if (seriesBrowser && !seriesBrowser.classList.contains("hidden")) {
+        closeSeriesBrowser();
+        e.preventDefault();
+        return;
+      }
+    }
+  });
+
+  var tvStyle = document.createElement("style");
+  tvStyle.textContent =
+    ".movie-card:focus, .profile-card:focus, button:focus, .nav-item:focus, .episode-item:focus, .season-tab:focus {" +
+    "  outline: 3px solid #e50914 !important; outline-offset: 4px; transform: scale(1.05); z-index: 10;" +
+    "}" +
+    "@media (min-width: 1200px) {" +
+    "  .movie-card { min-width: 200px; } .profile-card { min-width: 180px; min-height: 200px; }" +
+    "  #masterPassword { font-size: 28px; padding: 16px 24px; }" +
+    "  .pin-input { font-size: 28px; width: 60px; height: 60px; }" +
+    "}";
+  document.head.appendChild(tvStyle);
+
+  var observer = new MutationObserver(function() { setupTVNav(); });
+  observer.observe(document.body, { childList: true, subtree: true });
+  setupTVNav();
+})();
 
 // ===== TV Remote / D-pad Navigation =====
 (function() {
