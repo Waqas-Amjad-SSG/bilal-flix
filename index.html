@@ -651,7 +651,7 @@ function checkMasterPassword() {
     document.getElementById("lockScreen").classList.add("hidden");
     document.getElementById("profileSelect").classList.remove("hidden");
     renderProfiles();
-    sessionStorage.setItem("flix_unlocked", "1");
+    localStorage.setItem("flix_unlocked", "1");
   } else {
     document.getElementById("masterError").textContent = "Incorrect password";
     document.getElementById("masterPassword").value = "";
@@ -662,9 +662,9 @@ document.getElementById("masterPassword").addEventListener("keydown", function(e
 });
 
 // Check if already unlocked this session
-if (sessionStorage.getItem("flix_unlocked")) {
+if (localStorage.getItem("flix_unlocked")) {
   document.getElementById("lockScreen").classList.add("hidden");
-  const lastUser = sessionStorage.getItem("flix_user");
+  const lastUser = localStorage.getItem("flix_user");
   if (lastUser) {
     currentUser = PROFILES.find(function(p){return p.id === lastUser});
     if (currentUser) {
@@ -703,7 +703,7 @@ function checkProfilePassword() {
   const profile = PROFILES.find(function(p){return p.id === selectedProfileId});
   if (pin === profile.pin) {
     currentUser = profile;
-    sessionStorage.setItem("flix_user", profile.id);
+    localStorage.setItem("flix_user", profile.id);
     document.getElementById("passwordModal").classList.add("hidden");
     document.getElementById("profileSelect").classList.add("hidden");
     enterApp();
@@ -1003,15 +1003,15 @@ function setActiveNav(name) {
 }
 function switchProfile() {
   currentUser = null;
-  sessionStorage.removeItem("flix_user");
+  localStorage.removeItem("flix_user");
   document.getElementById("app").classList.remove("visible");
   document.getElementById("profileSelect").classList.remove("hidden");
   renderProfiles();
 }
 function logout() {
   currentUser = null;
-  sessionStorage.removeItem("flix_user");
-  sessionStorage.removeItem("flix_unlocked");
+  localStorage.removeItem("flix_user");
+  localStorage.removeItem("flix_unlocked");
   document.getElementById("app").classList.remove("visible");
   document.getElementById("profileSelect").classList.add("hidden");
   document.getElementById("lockScreen").classList.remove("hidden");
