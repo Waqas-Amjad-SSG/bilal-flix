@@ -1003,8 +1003,8 @@ function initMSAL() {
       redirectUri: ONEDRIVE_CONFIG.redirectUri,
     },
     cache: {
-      cacheLocation: "sessionStorage",
-      storeAuthStateInCookie: false,
+      cacheLocation: "localStorage",
+      storeAuthStateInCookie: true,
     }
   };
   
@@ -1037,14 +1037,22 @@ function initMSAL() {
   return true;
 }
 
-// Get access token (silently or via popup)
+// Detect if popup is likely to be blocked (mobile, TV, embedded browsers)
+function shouldUseRedirect() {
+  var ua = navigator.userAgent.toLowerCase();
+  return /android|iphone|ipad|ipod|mobile|tablet|smart-tv|smarttv|googletv|crkey|aftm|afts|aftt|aftb|fire\s?tv|webos|tizen|roku/i.test(ua)
+    || window.innerWidth < 800
+    || !window.open;
+}
+
+// Get access token (silently, popup, or redirect)
 async function getOneDriveToken() {
   if (!msalInstance) {
     if (!initMSAL()) return null;
   }
-  
+
   const tokenRequest = { scopes: ONEDRIVE_CONFIG.scopes };
-  
+
   // Try silent token first
   if (msalAccount) {
     tokenRequest.account = msalAccount;
@@ -1053,19 +1061,33 @@ async function getOneDriveToken() {
       oneDriveToken = response.accessToken;
       return oneDriveToken;
     } catch (e) {
-      console.log("Silent token failed, trying popup...");
+      console.log("Silent token failed, trying interactive...");
     }
   }
-  
-  // Fall back to popup
-  try {
-    const response = await msalInstance.acquireTokenPopup(tokenRequest);
-    msalAccount = response.account;
-    oneDriveToken = response.accessToken;
-    return oneDriveToken;
-  } catch (e) {
-    console.error("OneDrive login failed:", e);
-    return null;
+
+  // Interactive login: redirect on mobile/TV, popup on desktop
+  if (shouldUseRedirect()) {
+    // Save which movie we were trying to play so we can resume after redirect
+    var pendingId = sessionStorage.getItem("flix_pending_movie");
+    if (!pendingId) {
+      console.log("OneDrive: Using redirect login flow");
+    }
+    try {
+      await msalInstance.acquireTokenRedirect(tokenRequest);
+    } catch (e) {
+      console.error("OneDrive redirect login failed:", e);
+    }
+    return null; // Page will reload after redirect
+  } else {
+    try {
+      const response = await msalInstance.acquireTokenPopup(tokenRequest);
+      msalAccount = response.account;
+      oneDriveToken = response.accessToken;
+      return oneDriveToken;
+    } catch (e) {
+      console.error("OneDrive login failed:", e);
+      return null;
+    }
   }
 }
 
@@ -1282,7 +1304,10 @@ playMovie = function(id) {
     _originalPlayMovie(id);
     return;
   }
-  
+
+  // Save pending movie for redirect flow (mobile/TV)
+  sessionStorage.setItem("flix_pending_movie", id);
+
   // Try OneDrive streaming
   document.getElementById("playerScreen").classList.add("visible");
   document.getElementById("playerTitle").textContent = movie.title;
@@ -1312,6 +1337,7 @@ playMovie = function(id) {
   showControls();
   
   findMovieOnOneDrive(movie).then(function(result) {
+    sessionStorage.removeItem("flix_pending_movie");
     if (result && result.videoUrl) {
       const progress = currentUser ? getWatchProgress(currentUser.id, id) : null;
       const video = document.createElement("video");
